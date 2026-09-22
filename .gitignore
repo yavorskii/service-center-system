@@ -1,0 +1,23 @@
+# Compiled class files & build artifacts
+target/
+build/
+.gradle/
+*.class
+*.jar
+*.war
+
+# Node / React
+node_modules/
+dist/
+npm-debug.log*
+.env
+.env.local
+
+# IDE & Editor files
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Logs
+*.log
