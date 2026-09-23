@@ -60,26 +60,26 @@ export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ isOpen, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150">
+      <div className="bg-[#111827] border border-slate-800 rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-[#0B0F19]/50">
           <div>
-            <h3 className="text-lg font-bold text-white">Оформлення нового замовлення</h3>
-            <p className="text-xs text-slate-400">Внесення даних клієнта та реєстрація пристрою на ремонт</p>
+            <h3 className="text-base font-bold text-white">Оформлення нового замовлення</h3>
+            <p className="text-xs text-slate-400">Реєстрація клієнта та пристрою на ремонт</p>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {error && (
-            <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center gap-2">
+            <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span>{error}</span>
             </div>
@@ -87,7 +87,7 @@ export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ isOpen, onCl
 
           {/* Section 1: Client Info */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
               1. Дані клієнта
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -97,7 +97,7 @@ export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ isOpen, onCl
                   placeholder="ПІБ клієнта *"
                   value={formData.clientName}
                   onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-500"
+                  className="w-full px-3 py-2 bg-[#0B0F19] border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-500"
                 />
               </div>
               <div>
@@ -106,7 +106,7 @@ export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ isOpen, onCl
                   placeholder="Телефон (+380...) *"
                   value={formData.clientPhone}
                   onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500 font-mono placeholder:text-slate-500"
+                  className="w-full px-3 py-2 bg-[#0B0F19] border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 font-mono placeholder:text-slate-500"
                 />
               </div>
             </div>
@@ -114,7 +114,7 @@ export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ isOpen, onCl
 
           {/* Section 2: Device Info */}
           <div className="pt-2 border-t border-slate-800/80">
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
               2. Інформація про техніку
             </label>
             <div className="grid grid-cols-3 gap-2 mb-3">
@@ -123,10 +123,10 @@ export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ isOpen, onCl
                   type="button"
                   key={type}
                   onClick={() => setFormData({ ...formData, deviceType: type })}
-                  className={`py-2 px-3 rounded-lg text-xs font-medium border text-center transition-all ${
+                  className={`py-1.5 px-3 rounded-lg text-xs font-medium border text-center transition-all ${
                     formData.deviceType === type
-                      ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/40'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                      ? 'bg-blue-600/15 text-blue-400 border-blue-500/40'
+                      : 'bg-[#0B0F19] border-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
                   {type}
@@ -140,14 +140,14 @@ export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ isOpen, onCl
                 placeholder="Бренд (Asus, Apple, Lenovo) *"
                 value={formData.brand}
                 onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-500"
+                className="w-full px-3 py-2 bg-[#0B0F19] border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-500"
               />
               <input
                 type="text"
                 placeholder="Модель (iPhone 13, ROG G14) *"
                 value={formData.model}
                 onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-500"
+                className="w-full px-3 py-2 bg-[#0B0F19] border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-500"
               />
             </div>
 
@@ -157,38 +157,38 @@ export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ isOpen, onCl
                 placeholder="Серійний номер або IMEI"
                 value={formData.serialNumberOrImei}
                 onChange={(e) => setFormData({ ...formData, serialNumberOrImei: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500 font-mono placeholder:text-slate-500"
+                className="w-full px-3 py-2 bg-[#0B0F19] border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 font-mono placeholder:text-slate-500"
               />
               <input
                 type="text"
                 placeholder="Зовнішній стан (подряпини, тріщини)"
                 value={formData.appearanceNotes}
                 onChange={(e) => setFormData({ ...formData, appearanceNotes: e.target.value })}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-500"
+                className="w-full px-3 py-2 bg-[#0B0F19] border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-500"
               />
             </div>
           </div>
 
           {/* Section 3: Defect & Cost */}
           <div className="pt-2 border-t border-slate-800/80">
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
               3. Несправність та умови
             </label>
             <textarea
               rows={2}
-              placeholder="Детальний опис поломки зі слів клієнта *"
+              placeholder="Детальний опис несправності зі слів клієнта *"
               value={formData.defectDescription}
               onChange={(e) => setFormData({ ...formData, defectDescription: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500 placeholder:text-slate-500 mb-3"
+              className="w-full px-3 py-2 bg-[#0B0F19] border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 placeholder:text-slate-500 mb-3"
             />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Пріоритет замовлення</label>
+                <label className="block text-[11px] text-slate-400 mb-1">Пріоритет замовлення</label>
                 <select
                   value={formData.priority}
                   onChange={(e) => setFormData({ ...formData, priority: e.target.value as OrderPriority })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full px-3 py-2 bg-[#0B0F19] border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500"
                 >
                   <option value="LOW">Низький</option>
                   <option value="MEDIUM">Звичайний</option>
@@ -198,38 +198,38 @@ export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ isOpen, onCl
               </div>
 
               <div>
-                <label className="block text-xs text-slate-400 mb-1">Орієнтовна вартість (грн)</label>
+                <label className="block text-[11px] text-slate-400 mb-1">Орієнтовна вартість (грн)</label>
                 <input
                   type="number"
                   min="0"
                   step="50"
                   value={formData.estimatedCost}
                   onChange={(e) => setFormData({ ...formData, estimatedCost: Number(e.target.value) })}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500 font-mono"
+                  className="w-full px-3 py-2 bg-[#0B0F19] border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
                 />
               </div>
             </div>
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-800">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="px-3.5 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
             >
               Скасувати
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 rounded-lg text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25 transition-all flex items-center gap-2 disabled:opacity-50"
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
             >
               {loading ? (
                 <span>Збереження...</span>
               ) : (
                 <>
-                  <Check className="h-4 w-4" />
+                  <Check className="h-3.5 w-3.5" />
                   <span>Оформити замовлення</span>
                 </>
               )}
