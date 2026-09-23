@@ -16,10 +16,21 @@ const statusSteps: { key: OrderStatus; label: string; desc: string }[] = [
 ];
 
 export const PublicTrackingView: React.FC<PublicTrackingViewProps> = ({ onSearch }) => {
-  const [trackCode, setTrackCode] = useState('');
+  const queryCode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('code') : null;
+  const [trackCode, setTrackCode] = useState(queryCode || '');
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+
+  React.useEffect(() => {
+    if (queryCode) {
+      setLoading(true);
+      setSearched(true);
+      onSearch(queryCode)
+        .then(res => setOrder(res))
+        .finally(() => setLoading(false));
+    }
+  }, [queryCode, onSearch]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();

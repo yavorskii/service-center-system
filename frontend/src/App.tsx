@@ -11,11 +11,16 @@ import { WarehouseView } from './components/WarehouseView';
 import { Search, RefreshCw, CheckCircle2, LayoutGrid, List, X } from 'lucide-react';
 
 export const App: React.FC = () => {
+  const queryParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const initialTab = (queryParams?.get('tab') as 'orders' | 'warehouse' | 'tracking') || 'orders';
+  const initialView = (queryParams?.get('view') as 'cards' | 'table') || 'cards';
+  const initialModal = queryParams?.get('modal') === 'true';
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'orders' | 'warehouse' | 'tracking'>('orders');
-  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'orders' | 'warehouse' | 'tracking'>(initialTab);
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>(initialView);
+  const [isModalOpen, setIsModalOpen] = useState(initialModal);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
