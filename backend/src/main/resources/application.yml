@@ -1,0 +1,56 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: service-center-backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/service_center_db
+    username: devuser
+    password: devpassword
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 30000
+      pool-name: RepairHubHikariCP
+      max-lifetime: 1800000
+      connection-timeout: 20000
+
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+
+# Security & JWT Configuration
+app:
+  jwt:
+    # 256-bit secret key in base64: RepairHubSecretKeyForServiceCenterManagementSystem2026SecureKey!
+    secret: U2VydmljZUNlbnRlclN5c3RlbVJlcGFpckh1YjIwMjZKV1RTZWNyZXRLZXlSZWNvbW1lbmRlZERlZXBNaW5kQWd5
+    expiration-ms: 86400000 # 24 hours
+
+# Swagger / OpenAPI
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+
+logging:
+  level:
+    root: INFO
+    ua.repairhub: DEBUG
+    org.springframework.security: INFO
