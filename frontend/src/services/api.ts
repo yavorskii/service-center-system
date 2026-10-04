@@ -172,6 +172,42 @@ let mockOrders: Order[] = [
     createdAt: '2026-09-22 09:00',
     parts: [],
     services: []
+  },
+  {
+    id: 5,
+    orderNumber: 'SRV-2026-0005',
+    trackingCode: 'TRK-D4E12A',
+    client: {
+      id: 1,
+      fullName: 'Іван Сидоренко',
+      phone: '+380671234567',
+      email: 'ivan.sydor@gmail.com',
+      notes: 'Постійний клієнт, знижка 5%'
+    },
+    device: {
+      id: 5,
+      deviceType: 'Навушники',
+      brand: 'Sony',
+      model: 'WH-1000XM4',
+      serialNumber: 'SN-SNY-31245',
+      appearanceNotes: 'Затертий лівий амбушюр, не тримає заряд',
+      specs: { type: 'Over-ear', wireless: 'Bluetooth 5.0' }
+    },
+    technicianName: 'Дмитро Мельник',
+    status: 'READY_FOR_PICKUP',
+    priority: 'MEDIUM',
+    defectDescription: 'Швидко сідає акумулятор (тримає 20 хв)',
+    diagnosticsNotes: 'Заміна акумулятора виконана, протестовано автономність 24 год.',
+    estimatedCost: 650,
+    totalCost: 650,
+    createdAt: '2026-09-24 11:00',
+    completedAt: '2026-09-25 15:30',
+    parts: [
+      { id: 3, partName: 'Акумулятор для навушників Sony WH-1000XM4', quantity: 1, unitPrice: 350 }
+    ],
+    services: [
+      { id: 4, serviceName: 'Заміна елемента живлення та калібрування', price: 300 }
+    ]
   }
 ];
 

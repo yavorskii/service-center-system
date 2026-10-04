@@ -32,6 +32,26 @@ export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    if (isOpen) {
+      if (currentRole === 'USER') {
+        setFormData(prev => ({
+          ...prev,
+          clientName: 'Іван Сидоренко',
+          clientPhone: '+380671234567',
+          clientEmail: 'ivan.sydor@gmail.com',
+        }));
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          clientName: prev.clientName === 'Іван Сидоренко' ? '' : prev.clientName,
+          clientPhone: prev.clientPhone === '+380671234567' ? '+380' : prev.clientPhone,
+          clientEmail: prev.clientEmail === 'ivan.sydor@gmail.com' ? '' : prev.clientEmail,
+        }));
+      }
+    }
+  }, [isOpen, currentRole]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {

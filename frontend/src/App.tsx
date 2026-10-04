@@ -96,20 +96,29 @@ export const App: React.FC = () => {
     showToast(`Статус ${updated.orderNumber} змінено на "${newStatus}"`);
   };
 
-  // Status Counts calculation for tabs
+  // Role-based scoping: Admin views all CRM orders; Client views only their own devices
+  const scopedOrders = useMemo(() => {
+    if (currentRole === 'ADMIN') return orders;
+    return orders.filter(order => 
+      order.client.fullName.toLowerCase().includes('сидоренко') || 
+      order.client.phone.includes('0671234567')
+    );
+  }, [orders, currentRole]);
+
+  // Status Counts calculation for tabs based on scoped orders
   const statusCounts = useMemo(() => {
     return {
-      ALL: orders.length,
-      NEW: orders.filter(o => o.status === 'NEW').length,
-      IN_DIAGNOSTICS: orders.filter(o => o.status === 'IN_DIAGNOSTICS').length,
-      IN_PROGRESS: orders.filter(o => o.status === 'IN_PROGRESS' || o.status === 'PENDING_APPROVAL').length,
-      READY_FOR_PICKUP: orders.filter(o => o.status === 'READY_FOR_PICKUP').length,
-      COMPLETED: orders.filter(o => o.status === 'COMPLETED').length,
+      ALL: scopedOrders.length,
+      NEW: scopedOrders.filter(o => o.status === 'NEW').length,
+      IN_DIAGNOSTICS: scopedOrders.filter(o => o.status === 'IN_DIAGNOSTICS').length,
+      IN_PROGRESS: scopedOrders.filter(o => o.status === 'IN_PROGRESS' || o.status === 'PENDING_APPROVAL').length,
+      READY_FOR_PICKUP: scopedOrders.filter(o => o.status === 'READY_FOR_PICKUP').length,
+      COMPLETED: scopedOrders.filter(o => o.status === 'COMPLETED').length,
     };
-  }, [orders]);
+  }, [scopedOrders]);
 
   const filteredOrders = useMemo(() => {
-    return orders.filter(order => {
+    return scopedOrders.filter(order => {
       const q = searchQuery.toLowerCase().trim();
       const matchQuery = !q ||
         order.orderNumber.toLowerCase().includes(q) ||
@@ -126,7 +135,7 @@ export const App: React.FC = () => {
 
       return matchQuery && matchStatus;
     });
-  }, [orders, searchQuery, selectedStatus]);
+  }, [scopedOrders, searchQuery, selectedStatus]);
 
   const statusTabs = [
     { key: 'ALL', label: currentRole === 'ADMIN' ? 'Всі' : 'Всі мої', count: statusCounts.ALL },
@@ -172,7 +181,7 @@ export const App: React.FC = () => {
         {activeTab === 'orders' && (
           <>
             {/* Overview Stats (role-adaptive) */}
-            <StatsCards orders={orders} currentRole={currentRole} />
+            <StatsCards orders={scopedOrders} currentRole={currentRole} />
 
             {/* Filter and Search Section */}
             <div className="space-y-3 mb-5">
@@ -182,7 +191,7 @@ export const App: React.FC = () => {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
                   <input
                     type="text"
-                    placeholder="Пошук за клієнтом, телефоном, моделлю чи трек-кодом..."
+                    placeholder={currentRole === 'ADMIN' ? 'Пошук за клієнтом, телефоном, моделлю чи трек-кодом...' : 'Пошук серед моїх пристроїв (модель, несправність чи код)...'}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-9 pr-9 py-2 bg-[#111827] border border-slate-800 rounded-lg text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"

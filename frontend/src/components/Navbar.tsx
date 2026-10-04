@@ -122,8 +122,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ) : (
                   <>
                     <User className="h-4 w-4 text-emerald-400 shrink-0" />
-                    <span className="hidden sm:inline font-medium">Режим: <b className="text-white font-semibold">Користувач (Клієнт)</b></span>
-                    <span className="sm:hidden font-semibold text-white">Клієнт</span>
+                    <span className="hidden sm:inline font-medium">Клієнт: <b className="text-white font-semibold">Іван Сидоренко</b></span>
+                    <span className="sm:hidden font-semibold text-white">Іван С.</span>
                   </>
                 )}
                 <ChevronDown className="h-3 w-3 text-slate-400 ml-0.5" />
@@ -133,7 +133,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {roleMenuOpen && (
                 <div className="absolute right-0 mt-2 w-72 bg-[#111827] border border-slate-700 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
                   <div className="px-3 py-1.5 border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Оберіть роль користувача
+                    Оберіть профіль доступу
                   </div>
 
                   {/* Option 1: Administrator */}
@@ -149,11 +149,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-white">Адміністратор</span>
+                        <span className="text-xs font-semibold text-white">Адміністратор (Владислав Я.)</span>
                         {currentRole === 'ADMIN' && <Check className="h-3.5 w-3.5 text-blue-400" />}
                       </div>
                       <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
-                        Повний доступ: прийом техніки, склад запчастин, фінанси та зміна статусів.
+                        Режим співробітника: доступ до замовлень усіх клієнтів, складу та каси.
                       </p>
                     </div>
                   </button>
@@ -171,11 +171,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-white">Користувач (Клієнт)</span>
+                        <span className="text-xs font-semibold text-white">Клієнт (Іван Сидоренко)</span>
                         {currentRole === 'USER' && <Check className="h-3.5 w-3.5 text-emerald-400" />}
                       </div>
                       <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
-                        Клієнтський режим: статус моїх ремонтів, онлайн-трекінг та подання нової заявки.
+                        Особистий кабінет: перегляд тільки власних пристроїв, статусів та трекінгу.
                       </p>
                     </div>
                   </button>

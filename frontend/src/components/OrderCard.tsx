@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Order, OrderStatus, AppRole } from '../types';
-import { Smartphone, Laptop, Tablet, Phone, User, Check, Copy, ArrowRight, MoreHorizontal, Printer, Search } from 'lucide-react';
+import { Smartphone, Laptop, Tablet, Phone, User, Check, Copy, ArrowRight, MoreHorizontal, Printer, Search, Wrench } from 'lucide-react';
 
 interface OrderCardProps {
   order: Order;
@@ -148,16 +148,30 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           )}
         </div>
 
-        {/* Client Contacts */}
+        {/* Client Contacts (Admin) vs Assigned Technician & Dates (Client) */}
         <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 mb-3 pt-1">
-          <div className="flex items-center gap-1.5 truncate">
-            <User className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-            <span className="truncate">{order.client.fullName}</span>
-          </div>
-          <div className="flex items-center gap-1.5 truncate justify-end">
-            <Phone className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-            <span className="truncate font-mono">{order.client.phone}</span>
-          </div>
+          {currentRole === 'ADMIN' ? (
+            <>
+              <div className="flex items-center gap-1.5 truncate">
+                <User className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                <span className="truncate">{order.client.fullName}</span>
+              </div>
+              <div className="flex items-center gap-1.5 truncate justify-end">
+                <Phone className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                <span className="truncate font-mono">{order.client.phone}</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5 truncate">
+                <Wrench className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                <span className="truncate text-slate-300">Майстер: <b className="text-white font-medium">{order.technicianName || 'Тарас Бондаренко'}</b></span>
+              </div>
+              <div className="flex items-center gap-1.5 truncate justify-end text-[11px] text-slate-500">
+                <span>Прийом: {order.createdAt.substring(0, 10)}</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

@@ -32,7 +32,9 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({
             <tr>
               <th className="py-3 px-4">№ Замовлення</th>
               <th className="py-3 px-4">Трек-код</th>
-              <th className="py-3 px-4">Клієнт / Телефон</th>
+              <th className="py-3 px-4">
+                {currentRole === 'ADMIN' ? 'Клієнт / Телефон' : 'Майстер / Прийом'}
+              </th>
               <th className="py-3 px-4">Пристрій</th>
               <th className="py-3 px-4">Несправність</th>
               <th className="py-3 px-4 text-center">Статус</th>
@@ -63,8 +65,17 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({
                     </button>
                   </td>
                   <td className="py-3 px-4">
-                    <div className="font-medium text-white">{order.client.fullName}</div>
-                    <div className="text-[11px] text-slate-400 font-mono">{order.client.phone}</div>
+                    {currentRole === 'ADMIN' ? (
+                      <>
+                        <div className="font-medium text-white">{order.client.fullName}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">{order.client.phone}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-medium text-white">{order.technicianName || 'Тарас Бондаренко'}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">Прийом: {order.createdAt.substring(0, 10)}</div>
+                      </>
+                    )}
                   </td>
                   <td className="py-3 px-4">
                     <span className="font-semibold text-slate-200">
