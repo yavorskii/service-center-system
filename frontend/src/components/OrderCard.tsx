@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import type { Order, OrderStatus } from '../types';
-import { Smartphone, Laptop, Tablet, Phone, User, Check, Copy, ArrowRight, MoreHorizontal, Printer } from 'lucide-react';
+import type { Order, OrderStatus, AppRole } from '../types';
+import { Smartphone, Laptop, Tablet, Phone, User, Check, Copy, ArrowRight, MoreHorizontal, Printer, Search } from 'lucide-react';
 
 interface OrderCardProps {
   order: Order;
   onStatusChange: (orderId: number, newStatus: OrderStatus) => void;
+  currentRole?: AppRole;
+  onSelectTracking?: (trackingCode: string) => void;
 }
 
 export const statusConfig: Record<OrderStatus, { label: string; badgeClass: string; nextStatus?: OrderStatus; nextActionLabel?: string }> = {
@@ -48,7 +50,12 @@ export const statusConfig: Record<OrderStatus, { label: string; badgeClass: stri
   },
 };
 
-export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) => {
+export const OrderCard: React.FC<OrderCardProps> = ({ 
+  order, 
+  onStatusChange, 
+  currentRole = 'ADMIN',
+  onSelectTracking 
+}) => {
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -62,61 +69,86 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) =
   const DeviceIcon = getDeviceIcon(order.device.deviceType);
   const statusInfo = statusConfig[order.status];
 
-  const handleCopyTrack = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleCopyTrack = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     navigator.clipboard.writeText(order.trackingCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
 
   return (
-    <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 hover:border-slate-700/80 transition-all flex flex-col justify-between shadow-sm">
+    <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:border-slate-700/80 transition-all duration-200 shadow-sm relative group">
       <div>
-        {/* Header: Left Device Icon + Name, Right ONLY Status Badge */}
-        <div className="flex items-start justify-between gap-3 mb-2.5">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="p-2 rounded-lg bg-slate-800/80 text-blue-400 border border-slate-700/50 shrink-0">
-              <DeviceIcon className="h-4 w-4" />
+        {/* Top: Header with Ticket Number + Tracking + Status Badge */}
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-sm font-bold text-white tracking-tight">
+                {order.orderNumber}
+              </span>
+              <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded font-mono ${
+                order.priority === 'URGENT' 
+                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' 
+                  : order.priority === 'HIGH'
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  : 'bg-slate-800 text-slate-400'
+              }`}>
+                {order.priority === 'URGENT' ? 'Терміново' : order.priority === 'HIGH' ? 'Високий' : 'Звичайний'}
+              </span>
             </div>
-            <div className="min-w-0">
-              <h4 className="text-sm font-semibold text-white truncate">
-                {order.device.brand} {order.device.model}
-              </h4>
-              <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400 font-mono">
-                <span>{order.orderNumber}</span>
-                <span>•</span>
-                <button
-                  onClick={handleCopyTrack}
-                  title="Скопіювати трек-код"
-                  className="flex items-center gap-1 text-slate-400 hover:text-blue-400 transition-colors"
-                >
-                  <span>{order.trackingCode}</span>
-                  {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                </button>
-              </div>
-            </div>
+
+            {/* Clickable Tracking Code */}
+            <button
+              onClick={handleCopyTrack}
+              title="Натисніть для копіювання трек-коду"
+              className="mt-1 inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-400 font-mono transition-colors group/track"
+            >
+              <span>{order.trackingCode}</span>
+              {copied ? (
+                <Check className="h-3 w-3 text-emerald-400" />
+              ) : (
+                <Copy className="h-3 w-3 text-slate-500 group-hover/track:text-blue-400 transition-colors" />
+              )}
+            </button>
           </div>
 
-          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${statusInfo.badgeClass}`}>
+          {/* Unified Compact Status Badge */}
+          <span className={`text-xs font-medium px-2.5 py-1 rounded-md border shrink-0 ${statusInfo.badgeClass}`}>
             {statusInfo.label}
           </span>
         </div>
 
-        {/* Defect Block */}
-        <div className="bg-slate-800/40 border border-slate-800/60 rounded-lg p-2.5 mb-2.5 text-xs text-slate-300">
-          <p className="line-clamp-2">
-            <span className="text-slate-400 font-medium">Дефект:</span> {order.defectDescription}
-          </p>
+        {/* Device Information */}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="p-1.5 rounded-md bg-slate-800 text-slate-300">
+            <DeviceIcon className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <h4 className="text-xs font-semibold text-slate-200 truncate">
+              {order.device.brand} {order.device.model}
+            </h4>
+            <span className="text-[11px] text-slate-500 block truncate">
+              {order.device.deviceType} {order.device.serialNumber ? `• S/N: ${order.device.serialNumber}` : ''}
+            </span>
+          </div>
+        </div>
 
-          {/* Technician diagnostic note with subtle left border accent */}
+        {/* Defect Description */}
+        <div className="bg-slate-900/60 rounded-lg p-2.5 border border-slate-800/80 mb-3">
+          <span className="text-[10px] text-slate-500 font-medium uppercase block mb-1">
+            Заявлена несправність
+          </span>
+          <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
+            {order.defectDescription}
+          </p>
           {order.diagnosticsNotes && (
-            <div className="border-l-2 border-amber-500 bg-slate-800/30 pl-2.5 py-1 mt-2 rounded-r text-[11px] text-slate-300">
-              <span className="text-slate-400 font-medium">Майстер:</span> {order.diagnosticsNotes}
-            </div>
+            <p className="text-[11px] text-amber-300/80 mt-1 border-t border-slate-800/80 pt-1 italic line-clamp-1">
+              Діагностика: {order.diagnosticsNotes}
+            </p>
           )}
         </div>
 
-        {/* Client & Metadata Row */}
+        {/* Client Contacts */}
         <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 mb-3 pt-1">
           <div className="flex items-center gap-1.5 truncate">
             <User className="h-3.5 w-3.5 text-slate-500 shrink-0" />
@@ -129,7 +161,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) =
         </div>
       </div>
 
-      {/* Footer: Price prominent + Unified Primary Button + Quick Actions (···) */}
+      {/* Footer: Price + Actions (Role-dependent) */}
       <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2 mt-auto">
         <div>
           <span className="text-[10px] text-slate-500 block uppercase font-medium">До сплати</span>
@@ -137,48 +169,66 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) =
         </div>
 
         <div className="flex items-center gap-1.5">
-          {statusInfo.nextStatus && (
+          {/* Admin Mode Actions: Status advancement button */}
+          {currentRole === 'ADMIN' ? (
+            <>
+              {statusInfo.nextStatus && (
+                <button
+                  onClick={() => onStatusChange(order.id, statusInfo.nextStatus!)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1 active:scale-95"
+                >
+                  <span>{statusInfo.nextActionLabel}</span>
+                  <ArrowRight className="h-3 w-3" />
+                </button>
+              )}
+
+              {/* More options menu button */}
+              <div className="relative">
+                <button
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  title="Додаткові дії"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors border border-slate-800"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+
+                {menuOpen && (
+                  <div 
+                    className="absolute right-0 bottom-full mb-1 w-44 bg-slate-900 border border-slate-700/80 rounded-lg shadow-xl py-1 z-20 text-xs"
+                    onMouseLeave={() => setMenuOpen(false)}
+                  >
+                    <button
+                      onClick={() => { alert(`Друк квитанції для ${order.orderNumber}`); setMenuOpen(false); }}
+                      className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800 flex items-center gap-2"
+                    >
+                      <Printer className="h-3.5 w-3.5 text-slate-400" />
+                      <span>Друк квитанції</span>
+                    </button>
+                    <button
+                      onClick={() => { 
+                        navigator.clipboard.writeText(order.trackingCode); 
+                        alert(`Трек-код ${order.trackingCode} скопійовано!`); 
+                        setMenuOpen(false); 
+                      }}
+                      className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800 flex items-center gap-2"
+                    >
+                      <Copy className="h-3.5 w-3.5 text-slate-400" />
+                      <span>Скопіювати трек-код</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            /* User / Client Mode Actions: Online Tracking button */
             <button
-              onClick={() => onStatusChange(order.id, statusInfo.nextStatus!)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1 active:scale-95"
+              onClick={() => onSelectTracking ? onSelectTracking(order.trackingCode) : handleCopyTrack()}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition-all flex items-center gap-1.5 active:scale-95"
             >
-              <span>{statusInfo.nextActionLabel}</span>
-              <ArrowRight className="h-3 w-3" />
+              <Search className="h-3.5 w-3.5" />
+              <span>Трекінг статусу</span>
             </button>
           )}
-
-          {/* More options menu button */}
-          <div className="relative">
-            <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              title="Додаткові дії"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors border border-slate-800"
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </button>
-
-            {menuOpen && (
-              <div 
-                className="absolute right-0 bottom-full mb-1 w-44 bg-slate-900 border border-slate-700/80 rounded-lg shadow-xl py-1 z-20 text-xs"
-                onMouseLeave={() => setMenuOpen(false)}
-              >
-                <button
-                  onClick={() => { alert(`Друк квитанції для ${order.orderNumber}`); setMenuOpen(false); }}
-                  className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800 flex items-center gap-2"
-                >
-                  <Printer className="h-3.5 w-3.5 text-slate-400" />
-                  <span>Друк квитанції</span>
-                </button>
-                <button
-                  onClick={() => { alert(`Копіювати посилання трекінгу: https://service.ua/track/${order.trackingCode}`); setMenuOpen(false); }}
-                  className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800 flex items-center gap-2"
-                >
-                  <Copy className="h-3.5 w-3.5 text-slate-400" />
-                  <span>Посилання для клієнта</span>
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>

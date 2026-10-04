@@ -1,14 +1,20 @@
 import React, { useState } from 'react';
-import type { CreateOrderPayload, OrderPriority } from '../types';
+import type { CreateOrderPayload, OrderPriority, AppRole } from '../types';
 import { X, Check, AlertCircle } from 'lucide-react';
 
 interface OrderCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (payload: CreateOrderPayload) => Promise<void>;
+  currentRole?: AppRole;
 }
 
-export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ isOpen, onClose, onSubmit }) => {
+export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  onSubmit,
+  currentRole = 'ADMIN' 
+}) => {
   const [formData, setFormData] = useState<CreateOrderPayload>({
     clientName: '',
     clientPhone: '+380',
@@ -65,8 +71,14 @@ export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ isOpen, onCl
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-[#0B0F19]/50">
           <div>
-            <h3 className="text-base font-bold text-white">Оформлення нового замовлення</h3>
-            <p className="text-xs text-slate-400">Реєстрація клієнта та пристрою на ремонт</p>
+            <h3 className="text-base font-bold text-white">
+              {currentRole === 'ADMIN' ? 'Оформлення нового замовлення' : 'Подання заявки на ремонт'}
+            </h3>
+            <p className="text-xs text-slate-400">
+              {currentRole === 'ADMIN' 
+                ? 'Реєстрація клієнта та прийому техніки в майстерню' 
+                : 'Вкажіть дані пристрою та контакти для зв\'язку з менеджером'}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -223,14 +235,18 @@ export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ isOpen, onCl
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50"
+              className={`px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50 ${
+                currentRole === 'ADMIN'
+                  ? 'bg-blue-600 hover:bg-blue-500'
+                  : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
             >
               {loading ? (
                 <span>Збереження...</span>
               ) : (
                 <>
                   <Check className="h-3.5 w-3.5" />
-                  <span>Оформити замовлення</span>
+                  <span>{currentRole === 'ADMIN' ? 'Оформити замовлення' : 'Надіслати заявку на ремонт'}</span>
                 </>
               )}
             </button>

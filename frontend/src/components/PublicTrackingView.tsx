@@ -4,6 +4,7 @@ import { Search, CheckCircle2, Clock, AlertCircle, Wrench, Laptop } from 'lucide
 
 interface PublicTrackingViewProps {
   onSearch: (code: string) => Promise<Order | null>;
+  initialCode?: string;
 }
 
 const statusSteps: { key: OrderStatus; label: string; desc: string }[] = [
@@ -15,22 +16,24 @@ const statusSteps: { key: OrderStatus; label: string; desc: string }[] = [
   { key: 'COMPLETED', label: 'Видано', desc: 'Передано клієнту' },
 ];
 
-export const PublicTrackingView: React.FC<PublicTrackingViewProps> = ({ onSearch }) => {
+export const PublicTrackingView: React.FC<PublicTrackingViewProps> = ({ onSearch, initialCode }) => {
   const queryCode = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('code') : null;
-  const [trackCode, setTrackCode] = useState(queryCode || '');
+  const effectiveCode = initialCode || queryCode || '';
+  const [trackCode, setTrackCode] = useState(effectiveCode);
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
   React.useEffect(() => {
-    if (queryCode) {
+    if (effectiveCode) {
+      setTrackCode(effectiveCode);
       setLoading(true);
       setSearched(true);
-      onSearch(queryCode)
+      onSearch(effectiveCode)
         .then(res => setOrder(res))
         .finally(() => setLoading(false));
     }
-  }, [queryCode, onSearch]);
+  }, [effectiveCode, onSearch]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();

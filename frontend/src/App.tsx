@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import type { Order, OrderStatus, CreateOrderPayload } from './types';
+import type { Order, OrderStatus, CreateOrderPayload, AppRole } from './types';
 import { api } from './services/api';
 import { Navbar } from './components/Navbar';
 import { StatsCards } from './components/StatsCards';
@@ -22,6 +22,16 @@ export const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<'cards' | 'table'>(initialView);
   const [isModalOpen, setIsModalOpen] = useState(initialModal);
 
+  // Role state: ADMIN vs USER (Client)
+  const [currentRole, setCurrentRole] = useState<AppRole>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('repairhub_role') as AppRole) || 'ADMIN';
+    }
+    return 'ADMIN';
+  });
+
+  const [selectedTrackingCode, setSelectedTrackingCode] = useState<string>('');
+
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
@@ -32,6 +42,26 @@ export const App: React.FC = () => {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleRoleChange = (role: AppRole) => {
+    setCurrentRole(role);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('repairhub_role', role);
+    }
+    if (role === 'USER' && activeTab === 'warehouse') {
+      setActiveTab('orders');
+    }
+    showToast(
+      role === 'ADMIN'
+        ? 'Режим змінено: Адміністратор (повний доступ до системи та складу)'
+        : 'Режим змінено: Користувач / Клієнт (статус замовлень та трекінг)'
+    );
+  };
+
+  const handleSelectTracking = (code: string) => {
+    setSelectedTrackingCode(code);
+    setActiveTab('tracking');
   };
 
   const fetchOrders = async () => {
@@ -53,7 +83,11 @@ export const App: React.FC = () => {
   const handleCreateOrder = async (payload: CreateOrderPayload) => {
     const created = await api.createOrder(payload);
     setOrders(prev => [created, ...prev]);
-    showToast(`Замовлення ${created.orderNumber} успішно створено (код: ${created.trackingCode})`);
+    showToast(
+      currentRole === 'ADMIN'
+        ? `Замовлення ${created.orderNumber} успішно оформлено (код: ${created.trackingCode})`
+        : `Вашу заявку прийнято! Номер квитанції: ${created.orderNumber} (код трекінгу: ${created.trackingCode})`
+    );
   };
 
   const handleStatusChange = async (orderId: number, newStatus: OrderStatus) => {
@@ -95,7 +129,7 @@ export const App: React.FC = () => {
   }, [orders, searchQuery, selectedStatus]);
 
   const statusTabs = [
-    { key: 'ALL', label: 'Всі', count: statusCounts.ALL },
+    { key: 'ALL', label: currentRole === 'ADMIN' ? 'Всі' : 'Всі мої', count: statusCounts.ALL },
     { key: 'NEW', label: 'Нові', count: statusCounts.NEW },
     { key: 'IN_DIAGNOSTICS', label: 'Діагностика', count: statusCounts.IN_DIAGNOSTICS },
     { key: 'IN_PROGRESS', label: 'В роботі', count: statusCounts.IN_PROGRESS },
@@ -104,7 +138,7 @@ export const App: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0B0F19] text-[#F8FAFC] flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#0B0F19] text-[#F8FAFC] flex flex-col font-sans selection:bg-blue-600 selection:text-white pb-6">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-5 right-5 z-50 bg-slate-900 border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-medium animate-in fade-in slide-in-from-bottom-3 duration-200">
@@ -113,27 +147,32 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* Main Navbar */}
+      {/* Main Navbar with Role Switcher */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenCreateModal={() => setIsModalOpen(true)}
+        currentRole={currentRole}
+        onRoleChange={handleRoleChange}
       />
 
       {/* View Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
         {activeTab === 'tracking' && (
-          <PublicTrackingView onSearch={api.getOrderByTrackingCode} />
+          <PublicTrackingView 
+            onSearch={api.getOrderByTrackingCode} 
+            initialCode={selectedTrackingCode} 
+          />
         )}
 
-        {activeTab === 'warehouse' && (
+        {activeTab === 'warehouse' && currentRole === 'ADMIN' && (
           <WarehouseView />
         )}
 
         {activeTab === 'orders' && (
           <>
-            {/* Overview Stats */}
-            <StatsCards orders={orders} />
+            {/* Overview Stats (role-adaptive) */}
+            <StatsCards orders={orders} currentRole={currentRole} />
 
             {/* Filter and Search Section */}
             <div className="space-y-3 mb-5">
@@ -240,6 +279,8 @@ export const App: React.FC = () => {
                     key={order.id}
                     order={order}
                     onStatusChange={handleStatusChange}
+                    currentRole={currentRole}
+                    onSelectTracking={handleSelectTracking}
                   />
                 ))}
               </div>
@@ -247,25 +288,20 @@ export const App: React.FC = () => {
               <OrderTableView
                 orders={filteredOrders}
                 onStatusChange={handleStatusChange}
+                currentRole={currentRole}
+                onSelectTracking={handleSelectTracking}
               />
             )}
           </>
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-800/80 py-3.5 text-center text-[11px] text-slate-500 mt-auto bg-[#0B0F19]">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>RepairHub CRM — Система управління замовленнями сервісного центру (Варіант 19)</span>
-          <span className="font-mono text-slate-500">React 18 • TypeScript • Tailwind CSS</span>
-        </div>
-      </footer>
-
       {/* Order Creation Modal */}
       <OrderCreateModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleCreateOrder}
+        currentRole={currentRole}
       />
     </div>
   );

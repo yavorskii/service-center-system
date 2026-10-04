@@ -1,18 +1,24 @@
 import React from 'react';
-import type { Order } from '../types';
-import { ClipboardList, Clock, CheckCircle2, DollarSign } from 'lucide-react';
+import type { Order, AppRole } from '../types';
+import { ClipboardList, Clock, CheckCircle2, DollarSign, Wallet } from 'lucide-react';
 
 interface StatsCardsProps {
   orders: Order[];
+  currentRole?: AppRole;
 }
 
-export const StatsCards: React.FC<StatsCardsProps> = ({ orders }) => {
+export const StatsCards: React.FC<StatsCardsProps> = ({ orders, currentRole = 'ADMIN' }) => {
   const totalOrders = orders.length;
-  const inProgress = orders.filter(o => o.status === 'IN_PROGRESS' || o.status === 'IN_DIAGNOSTICS').length;
+  const inProgress = orders.filter(o => o.status === 'IN_PROGRESS' || o.status === 'IN_DIAGNOSTICS' || o.status === 'PENDING_APPROVAL').length;
   const ready = orders.filter(o => o.status === 'READY_FOR_PICKUP').length;
+  
+  // Total company turnover vs user's pending payments
   const totalRevenue = orders.reduce((sum, o) => sum + (o.totalCost || 0), 0);
+  const userPendingPayment = orders
+    .filter(o => o.status === 'READY_FOR_PICKUP' || o.status === 'IN_PROGRESS')
+    .reduce((sum, o) => sum + (o.totalCost || 0), 0);
 
-  const stats = [
+  const stats = currentRole === 'ADMIN' ? [
     {
       label: 'Всього замовлень',
       value: totalOrders,
@@ -40,6 +46,35 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ orders }) => {
       icon: DollarSign,
       color: 'text-slate-300',
       bg: 'bg-slate-800'
+    }
+  ] : [
+    {
+      label: 'Мої пристрої в сервісі',
+      value: totalOrders,
+      icon: ClipboardList,
+      color: 'text-blue-400',
+      bg: 'bg-blue-500/10'
+    },
+    {
+      label: 'У процесі ремонту',
+      value: inProgress,
+      icon: Clock,
+      color: 'text-amber-400',
+      bg: 'bg-amber-500/10'
+    },
+    {
+      label: 'Готові до отримання',
+      value: ready,
+      icon: CheckCircle2,
+      color: 'text-emerald-400',
+      bg: 'bg-emerald-500/10'
+    },
+    {
+      label: 'До сплати',
+      value: `${userPendingPayment.toLocaleString('uk-UA')} ₴`,
+      icon: Wallet,
+      color: 'text-emerald-400',
+      bg: 'bg-emerald-500/10'
     }
   ];
 

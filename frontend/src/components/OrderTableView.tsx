@@ -1,14 +1,21 @@
 import React from 'react';
-import type { Order, OrderStatus } from '../types';
+import type { Order, OrderStatus, AppRole } from '../types';
 import { statusConfig } from './OrderCard';
-import { ArrowRight, Check, Copy } from 'lucide-react';
+import { ArrowRight, Check, Copy, Search } from 'lucide-react';
 
 interface OrderTableViewProps {
   orders: Order[];
   onStatusChange: (orderId: number, newStatus: OrderStatus) => void;
+  currentRole?: AppRole;
+  onSelectTracking?: (trackingCode: string) => void;
 }
 
-export const OrderTableView: React.FC<OrderTableViewProps> = ({ orders, onStatusChange }) => {
+export const OrderTableView: React.FC<OrderTableViewProps> = ({ 
+  orders, 
+  onStatusChange, 
+  currentRole = 'ADMIN',
+  onSelectTracking 
+}) => {
   const [copiedId, setCopiedId] = React.useState<number | null>(null);
 
   const handleCopy = (id: number, code: string) => {
@@ -30,7 +37,7 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({ orders, onStatus
               <th className="py-3 px-4">Несправність</th>
               <th className="py-3 px-4 text-center">Статус</th>
               <th className="py-3 px-4 text-right">Сума</th>
-              <th className="py-3 px-4 text-right">Дія</th>
+              <th className="py-3 px-4 text-right">{currentRole === 'ADMIN' ? 'Дія' : 'Онлайн-статус'}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60 text-slate-300">
@@ -44,7 +51,7 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({ orders, onStatus
                   <td className="py-3 px-4 font-mono whitespace-nowrap">
                     <button
                       onClick={() => handleCopy(order.id, order.trackingCode)}
-                      title="Скопіювати"
+                      title="Скопіювати трек-код"
                       className="text-slate-400 hover:text-blue-400 flex items-center gap-1 transition-colors"
                     >
                       <span>{order.trackingCode}</span>
@@ -77,16 +84,26 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({ orders, onStatus
                     {order.totalCost} ₴
                   </td>
                   <td className="py-3 px-4 text-right whitespace-nowrap">
-                    {statusInfo.nextStatus ? (
-                      <button
-                        onClick={() => onStatusChange(order.id, statusInfo.nextStatus!)}
-                        className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-[11px] transition-all inline-flex items-center gap-1"
-                      >
-                        <span>{statusInfo.nextActionLabel}</span>
-                        <ArrowRight className="h-3 w-3" />
-                      </button>
+                    {currentRole === 'ADMIN' ? (
+                      statusInfo.nextStatus ? (
+                        <button
+                          onClick={() => onStatusChange(order.id, statusInfo.nextStatus!)}
+                          className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-[11px] transition-all inline-flex items-center gap-1 active:scale-95"
+                        >
+                          <span>{statusInfo.nextActionLabel}</span>
+                          <ArrowRight className="h-3 w-3" />
+                        </button>
+                      ) : (
+                        <span className="text-slate-500 text-[11px]">—</span>
+                      )
                     ) : (
-                      <span className="text-slate-500 text-[11px]">—</span>
+                      <button
+                        onClick={() => onSelectTracking ? onSelectTracking(order.trackingCode) : handleCopy(order.id, order.trackingCode)}
+                        className="px-2.5 py-1 rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-medium text-[11px] transition-all inline-flex items-center gap-1 active:scale-95"
+                      >
+                        <Search className="h-3 w-3" />
+                        <span>Перевірити</span>
+                      </button>
                     )}
                   </td>
                 </tr>
