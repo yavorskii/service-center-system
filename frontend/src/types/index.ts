@@ -9,15 +9,13 @@ export type OrderStatus =
 
 export type OrderPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
-export type UserRole = 'ROLE_ADMIN' | 'ROLE_MANAGER' | 'ROLE_TECHNICIAN';
+export type UserRole = 'ROLE_ADMIN' | 'ROLE_MANAGER' | 'ROLE_TECHNICIAN' | 'ROLE_CLIENT';
 
-export type AppRole = 'ADMIN' | 'USER';
-
-export interface CurrentUser {
-  name: string;
-  role: AppRole;
-  roleLabel: string;
-  subLabel: string;
+export interface AuthUser {
+  username: string;
+  fullName: string;
+  role: string;
+  token: string;
 }
 
 export interface Client {

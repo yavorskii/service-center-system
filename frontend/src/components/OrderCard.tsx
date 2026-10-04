@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
-import type { Order, OrderStatus, AppRole } from '../types';
-import { Smartphone, Laptop, Tablet, Phone, User, Check, Copy, ArrowRight, MoreHorizontal, Printer, Search, Wrench } from 'lucide-react';
+import type { Order, OrderStatus } from '../types';
+import { Smartphone, Laptop, Tablet, Phone, User, Check, Copy, ArrowRight, MoreHorizontal, Printer } from 'lucide-react';
 
 interface OrderCardProps {
   order: Order;
   onStatusChange: (orderId: number, newStatus: OrderStatus) => void;
-  currentRole?: AppRole;
-  onSelectTracking?: (trackingCode: string) => void;
 }
 
 export const statusConfig: Record<OrderStatus, { label: string; badgeClass: string; nextStatus?: OrderStatus; nextActionLabel?: string }> = {
@@ -50,12 +48,7 @@ export const statusConfig: Record<OrderStatus, { label: string; badgeClass: stri
   },
 };
 
-export const OrderCard: React.FC<OrderCardProps> = ({ 
-  order, 
-  onStatusChange, 
-  currentRole = 'ADMIN',
-  onSelectTracking 
-}) => {
+export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) => {
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -79,7 +72,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   return (
     <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:border-slate-700/80 transition-all duration-200 shadow-sm relative group">
       <div>
-        {/* Top: Header with Ticket Number + Tracking + Status Badge */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div>
             <div className="flex items-center gap-2">
@@ -97,10 +89,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               </span>
             </div>
 
-            {/* Clickable Tracking Code */}
             <button
               onClick={handleCopyTrack}
-              title="Натисніть для копіювання трек-коду"
+              title="Скопіювати трек-код"
               className="mt-1 inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-blue-400 font-mono transition-colors group/track"
             >
               <span>{order.trackingCode}</span>
@@ -112,13 +103,11 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             </button>
           </div>
 
-          {/* Unified Compact Status Badge */}
           <span className={`text-xs font-medium px-2.5 py-1 rounded-md border shrink-0 ${statusInfo.badgeClass}`}>
             {statusInfo.label}
           </span>
         </div>
 
-        {/* Device Information */}
         <div className="flex items-center gap-2 mb-3">
           <div className="p-1.5 rounded-md bg-slate-800 text-slate-300">
             <DeviceIcon className="h-4 w-4" />
@@ -133,7 +122,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           </div>
         </div>
 
-        {/* Defect Description */}
         <div className="bg-slate-900/60 rounded-lg p-2.5 border border-slate-800/80 mb-3">
           <span className="text-[10px] text-slate-500 font-medium uppercase block mb-1">
             Заявлена несправність
@@ -148,34 +136,18 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           )}
         </div>
 
-        {/* Client Contacts (Admin) vs Assigned Technician & Dates (Client) */}
         <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 mb-3 pt-1">
-          {currentRole === 'ADMIN' ? (
-            <>
-              <div className="flex items-center gap-1.5 truncate">
-                <User className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                <span className="truncate">{order.client.fullName}</span>
-              </div>
-              <div className="flex items-center gap-1.5 truncate justify-end">
-                <Phone className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                <span className="truncate font-mono">{order.client.phone}</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="flex items-center gap-1.5 truncate">
-                <Wrench className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-                <span className="truncate text-slate-300">Майстер: <b className="text-white font-medium">{order.technicianName || 'Тарас Бондаренко'}</b></span>
-              </div>
-              <div className="flex items-center gap-1.5 truncate justify-end text-[11px] text-slate-500">
-                <span>Прийом: {order.createdAt.substring(0, 10)}</span>
-              </div>
-            </>
-          )}
+          <div className="flex items-center gap-1.5 truncate">
+            <User className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+            <span className="truncate">{order.client.fullName}</span>
+          </div>
+          <div className="flex items-center gap-1.5 truncate justify-end">
+            <Phone className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+            <span className="truncate font-mono">{order.client.phone}</span>
+          </div>
         </div>
       </div>
 
-      {/* Footer: Price + Actions (Role-dependent) */}
       <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2 mt-auto">
         <div>
           <span className="text-[10px] text-slate-500 block uppercase font-medium">До сплати</span>
@@ -183,66 +155,51 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5">
-          {/* Admin Mode Actions: Status advancement button */}
-          {currentRole === 'ADMIN' ? (
-            <>
-              {statusInfo.nextStatus && (
-                <button
-                  onClick={() => onStatusChange(order.id, statusInfo.nextStatus!)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1 active:scale-95"
-                >
-                  <span>{statusInfo.nextActionLabel}</span>
-                  <ArrowRight className="h-3 w-3" />
-                </button>
-              )}
-
-              {/* More options menu button */}
-              <div className="relative">
-                <button
-                  onClick={() => setMenuOpen(!menuOpen)}
-                  title="Додаткові дії"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors border border-slate-800"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </button>
-
-                {menuOpen && (
-                  <div 
-                    className="absolute right-0 bottom-full mb-1 w-44 bg-slate-900 border border-slate-700/80 rounded-lg shadow-xl py-1 z-20 text-xs"
-                    onMouseLeave={() => setMenuOpen(false)}
-                  >
-                    <button
-                      onClick={() => { alert(`Друк квитанції для ${order.orderNumber}`); setMenuOpen(false); }}
-                      className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800 flex items-center gap-2"
-                    >
-                      <Printer className="h-3.5 w-3.5 text-slate-400" />
-                      <span>Друк квитанції</span>
-                    </button>
-                    <button
-                      onClick={() => { 
-                        navigator.clipboard.writeText(order.trackingCode); 
-                        alert(`Трек-код ${order.trackingCode} скопійовано!`); 
-                        setMenuOpen(false); 
-                      }}
-                      className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800 flex items-center gap-2"
-                    >
-                      <Copy className="h-3.5 w-3.5 text-slate-400" />
-                      <span>Скопіювати трек-код</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            /* User / Client Mode Actions: Online Tracking button */
+          {statusInfo.nextStatus && (
             <button
-              onClick={() => onSelectTracking ? onSelectTracking(order.trackingCode) : handleCopyTrack()}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 transition-all flex items-center gap-1.5 active:scale-95"
+              onClick={() => onStatusChange(order.id, statusInfo.nextStatus!)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1 active:scale-95"
             >
-              <Search className="h-3.5 w-3.5" />
-              <span>Трекінг статусу</span>
+              <span>{statusInfo.nextActionLabel}</span>
+              <ArrowRight className="h-3 w-3" />
             </button>
           )}
+
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              title="Додаткові дії"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors border border-slate-800"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+
+            {menuOpen && (
+              <div 
+                className="absolute right-0 bottom-full mb-1 w-44 bg-slate-900 border border-slate-700/80 rounded-lg shadow-xl py-1 z-20 text-xs"
+                onMouseLeave={() => setMenuOpen(false)}
+              >
+                <button
+                  onClick={() => { alert(`Друк квитанції для ${order.orderNumber}`); setMenuOpen(false); }}
+                  className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800 flex items-center gap-2"
+                >
+                  <Printer className="h-3.5 w-3.5 text-slate-400" />
+                  <span>Друк квитанції</span>
+                </button>
+                <button
+                  onClick={() => { 
+                    navigator.clipboard.writeText(order.trackingCode); 
+                    alert(`Код ${order.trackingCode} скопійовано!`); 
+                    setMenuOpen(false); 
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800 flex items-center gap-2"
+                >
+                  <Copy className="h-3.5 w-3.5 text-slate-400" />
+                  <span>Скопіювати трек-код</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

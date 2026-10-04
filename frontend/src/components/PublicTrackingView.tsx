@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Order, OrderStatus } from '../types';
-import { Search, CheckCircle2, Clock, AlertCircle, Wrench, Laptop } from 'lucide-react';
+import { Search, CheckCircle2, Clock, AlertCircle, Laptop } from 'lucide-react';
 
 interface PublicTrackingViewProps {
   onSearch: (code: string) => Promise<Order | null>;
@@ -63,89 +63,87 @@ export const PublicTrackingView: React.FC<PublicTrackingViewProps> = ({ onSearch
 
   return (
     <div className="max-w-4xl mx-auto py-6 px-4">
-      {/* Search Header Banner */}
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold uppercase tracking-wider mb-2.5">
-          <Wrench className="h-3.5 w-3.5" /> Онлайн-трекінг ремонту
+      <div className="bg-[#111827] border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl mb-6">
+        <div className="text-center max-w-xl mx-auto mb-6">
+          <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-blue-600/10 text-blue-400 mb-3 border border-blue-500/20">
+            <Search className="h-6 w-6" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Онлайн-трекінг ремонту техніки</h2>
+          <p className="text-xs text-slate-400 mt-1">
+            Введіть унікальний трек-код із квитанції для перевірки поточного стану та кошторису робіт
+          </p>
         </div>
-        <h2 className="text-2xl font-bold text-white tracking-tight">
-          Перевірка статусу виконання замовлення
-        </h2>
-        <p className="text-xs text-slate-400 mt-1 max-w-lg mx-auto">
-          Введіть трек-код із квитанції (наприклад, <code className="text-blue-400 font-mono">TRK-B2C44E</code> або <code className="text-blue-400 font-mono">TRK-A8F91B</code>)
-        </p>
 
-        {/* Search Input Form */}
-        <form onSubmit={handleSearch} className="mt-5 flex max-w-md mx-auto gap-2">
+        <form onSubmit={handleSearch} className="max-w-lg mx-auto flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
             <input
               type="text"
-              placeholder="Введіть трек-код..."
+              placeholder="TRK-A8F91B"
               value={trackCode}
-              onChange={(e) => setTrackCode(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 bg-[#111827] border border-slate-800 rounded-lg text-white placeholder:text-slate-500 font-mono text-xs focus:outline-none focus:border-blue-500"
+              onChange={(e) => setTrackCode(e.target.value.toUpperCase())}
+              className="w-full px-4 py-2.5 bg-[#0B0F19] border border-slate-800 rounded-xl text-sm text-white placeholder:text-slate-500 font-mono focus:outline-none focus:border-blue-500 uppercase tracking-wider"
             />
           </div>
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition-all disabled:opacity-50 shrink-0"
+            className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-all shadow-md shrink-0 disabled:opacity-50"
           >
             {loading ? 'Пошук...' : 'Перевірити'}
           </button>
         </form>
+
+        <div className="mt-3 text-center">
+          <span className="text-[11px] text-slate-500">
+            Тестові коди: <button type="button" onClick={() => setTrackCode('TRK-A8F91B')} className="text-blue-400 font-mono hover:underline">TRK-A8F91B</button>, <button type="button" onClick={() => setTrackCode('TRK-B2C44E')} className="text-blue-400 font-mono hover:underline">TRK-B2C44E</button>, <button type="button" onClick={() => setTrackCode('TRK-D4E12A')} className="text-blue-400 font-mono hover:underline">TRK-D4E12A</button>
+          </span>
+        </div>
       </div>
 
-      {/* Result Display */}
       {searched && !order && !loading && (
-        <div className="text-center p-6 rounded-xl bg-[#111827] border border-slate-800 max-w-md mx-auto">
-          <AlertCircle className="h-8 w-8 text-amber-400 mx-auto mb-2" />
-          <h4 className="text-sm font-bold text-white">Замовлення не знайдено</h4>
-          <p className="text-xs text-slate-400 mt-1">
-            Перевірте правильність трек-коду або зверніться до приймальника сервісного центру.
+        <div className="bg-[#111827] border border-slate-800 rounded-xl p-8 text-center animate-in fade-in duration-200">
+          <AlertCircle className="h-10 w-10 text-rose-400 mx-auto mb-2" />
+          <h3 className="text-sm font-semibold text-white">Замовлення не знайдено</h3>
+          <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+            Перевірте правильність коду або зверніться до приймальника сервісного центру.
           </p>
         </div>
       )}
 
       {order && (
-        <div className="bg-[#111827] border border-slate-800 rounded-xl overflow-hidden shadow-lg animate-in fade-in duration-200">
-          {/* Card Top */}
-          <div className="p-5 border-b border-slate-800 bg-[#0B0F19]/40 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                <Laptop className="h-5 w-5" />
+        <div className="bg-[#111827] border border-slate-800 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in duration-200">
+          <div className="bg-slate-900/90 border-b border-slate-800 p-5 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-base font-bold text-white font-mono">{order.orderNumber}</span>
+                <span className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">
+                  {order.trackingCode}
+                </span>
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-white">
-                    {order.device.brand} {order.device.model}
-                  </h3>
-                  <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                    {order.orderNumber}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Клієнт: <b>{order.client.fullName}</b> • Дата прийому: {order.createdAt}
-                </p>
+              <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
+                <Laptop className="h-3.5 w-3.5 text-slate-500" />
+                <span>{order.device.brand} {order.device.model} ({order.device.deviceType})</span>
               </div>
             </div>
 
             <div className="text-right">
-              <span className="text-[11px] text-slate-400 block">Сума до сплати</span>
-              <span className="text-xl font-bold text-emerald-400 font-mono">{order.totalCost} ₴</span>
+              <span className="text-[11px] text-slate-500 block uppercase">Загальна вартість</span>
+              <span className="text-xl font-bold font-mono text-white">{order.totalCost} ₴</span>
             </div>
           </div>
 
-          {/* Stepper / Timeline */}
-          <div className="p-5 border-b border-slate-800">
-            <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+          <div className="p-6 border-b border-slate-800">
+            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-6">
+              Поточний прогрес виконання робіт
+            </h4>
+
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
               {statusSteps.map((step, idx) => {
                 const state = getStepStatus(step.key, order.status);
                 return (
-                  <div key={idx} className="relative flex flex-col items-center text-center">
+                  <div key={step.key} className="flex flex-col items-center text-center">
                     <div
-                      className={`h-8 w-8 rounded-full flex items-center justify-center border mb-1.5 transition-all ${
+                      className={`h-9 w-9 rounded-full flex items-center justify-center border-2 mb-2 transition-all ${
                         state === 'completed'
                           ? 'bg-emerald-500/15 border-emerald-500 text-emerald-400'
                           : state === 'current'
@@ -169,7 +167,6 @@ export const PublicTrackingView: React.FC<PublicTrackingViewProps> = ({ onSearch
             </div>
           </div>
 
-          {/* Details breakdown */}
           <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             <div>
               <h4 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">

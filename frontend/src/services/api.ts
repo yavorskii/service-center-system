@@ -1,30 +1,8 @@
-import type { Order, SparePart, CreateOrderPayload, OrderStatus } from '../types';
+import type { Order, SparePart, CreateOrderPayload, OrderStatus, AuthUser } from '../types';
 
 const API_BASE_URL = 'http://localhost:8080/api/v1';
 
 let authToken: string | null = typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null;
-
-async function getAuthToken(): Promise<string> {
-  if (authToken) return authToken;
-  try {
-    const res = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'mgr_alina', password: 'manager123' })
-    });
-    if (res.ok) {
-      const data = await res.json();
-      authToken = data.token;
-      if (authToken && typeof window !== 'undefined') {
-        localStorage.setItem('repairhub_token', authToken);
-      }
-      return authToken || '';
-    }
-  } catch (err) {
-    console.warn('Backend login connection notice:', err);
-  }
-  return '';
-}
 
 function mapBackendOrderToFrontend(item: any): Order {
   return {
@@ -174,6 +152,36 @@ let mockOrders: Order[] = [
     services: []
   },
   {
+    id: 4,
+    orderNumber: 'SRV-2026-0004',
+    trackingCode: 'TRK-E9A22F',
+    client: {
+      id: 4,
+      fullName: 'Олексій Мельник',
+      phone: '+380679998877',
+      email: 'oleksiy@example.com'
+    },
+    device: {
+      id: 4,
+      deviceType: 'Ноутбук',
+      brand: 'Lenovo',
+      model: 'ThinkPad T14',
+      serialNumber: 'SN-LNV-88219',
+      appearanceNotes: 'Потертості на кутах'
+    },
+    technicianName: 'Дмитро Мельник',
+    status: 'COMPLETED',
+    priority: 'HIGH',
+    defectDescription: 'Не вмикається після стрибка напруги в мережі',
+    diagnosticsNotes: 'Замінено вхідний контролер живлення BQ24780S.',
+    estimatedCost: 1200,
+    totalCost: 1200,
+    createdAt: '2026-09-20 11:00',
+    completedAt: '2026-09-21 16:30',
+    parts: [],
+    services: []
+  },
+  {
     id: 5,
     orderNumber: 'SRV-2026-0005',
     trackingCode: 'TRK-D4E12A',
@@ -215,16 +223,87 @@ let mockSpareParts: SparePart[] = [
   { id: 1, sku: 'TH-MX4-4G', name: 'Термопаста Arctic MX-4 (4г)', category: 'Витратні матеріали', stockQuantity: 15, minStockLimit: 3, retailPrice: 250, purchasePrice: 150 },
   { id: 2, sku: 'DISP-IPH13P-OEM', name: 'Дисплейний модуль iPhone 13 Pro (OEM)', category: 'Дисплеї', stockQuantity: 4, minStockLimit: 1, retailPrice: 4000, purchasePrice: 2800 },
   { id: 3, sku: 'BAT-SAM-S8', name: 'Акумулятор Samsung Galaxy Tab S8', category: 'Акумулятори', stockQuantity: 6, minStockLimit: 2, retailPrice: 1400, purchasePrice: 900 },
-  { id: 4, sku: 'CON-TYPEC-GEN', name: "Роз'єм живлення USB Type-C", category: "Роз'єми", stockQuantity: 50, minStockLimit: 10, retailPrice: 120, purchasePrice: 40 }
+  { id: 4, sku: 'CON-TYPEC-GEN', name: 'Роз\'єм живлення USB Type-C', category: 'Роз\'єми', stockQuantity: 50, minStockLimit: 10, retailPrice: 120, purchasePrice: 35 }
 ];
 
 export const api = {
+  async login(username: string, password: string): Promise<AuthUser> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        authToken = data.token;
+        const user: AuthUser = {
+          username: data.username || username,
+          fullName: data.fullName || (username === 'admin_oleg' ? 'Олег Петренко' : username === 'mgr_alina' ? 'Аліна Ковальчук' : 'Тарас Бондаренко'),
+          role: data.role || (username.startsWith('admin') ? 'ROLE_ADMIN' : username.startsWith('mgr') ? 'ROLE_MANAGER' : 'ROLE_TECHNICIAN'),
+          token: data.token
+        };
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('repairhub_token', data.token);
+          localStorage.setItem('repairhub_user', JSON.stringify(user));
+        }
+        return user;
+      }
+    } catch {
+    }
+
+    let role = 'ROLE_TECHNICIAN';
+    let fullName = 'Тарас Бондаренко';
+    if (username.toLowerCase().includes('admin') || username === 'admin_oleg') {
+      role = 'ROLE_ADMIN';
+      fullName = 'Владислав Яворський (Адмін)';
+    } else if (username.toLowerCase().includes('mgr') || username === 'mgr_alina') {
+      role = 'ROLE_MANAGER';
+      fullName = 'Аліна Ковальчук (Менеджер)';
+    }
+
+    const mockToken = 'mock-jwt-token-' + Date.now();
+    authToken = mockToken;
+    const user: AuthUser = {
+      username,
+      fullName,
+      role,
+      token: mockToken
+    };
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('repairhub_token', mockToken);
+      localStorage.setItem('repairhub_user', JSON.stringify(user));
+    }
+    return user;
+  },
+
+  logout(): void {
+    authToken = null;
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('repairhub_token');
+      localStorage.removeItem('repairhub_user');
+    }
+  },
+
+  getCurrentUser(): AuthUser | null {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('repairhub_user');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+        }
+      }
+    }
+    return null;
+  },
+
   async getOrders(): Promise<Order[]> {
     try {
-      const token = await getAuthToken();
+      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
       const res = await fetch(`${API_BASE_URL}/orders`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Accept': 'application/json'
         }
       });
@@ -232,10 +311,27 @@ export const api = {
         const data = await res.json();
         return data.map(mapBackendOrderToFrontend);
       }
-    } catch (err) {
-      console.warn('Live backend orders fetch failed, using local cache:', err);
+    } catch {
     }
     return [...mockOrders];
+  },
+
+  async getOrdersByPhoneOrTracking(query: string): Promise<Order[]> {
+    const q = query.trim().toUpperCase();
+    if (!q) return [];
+    try {
+      const res = await fetch(`${API_BASE_URL}/tracking/${encodeURIComponent(q)}`);
+      if (res.ok) {
+        const data = await res.json();
+        return [mapBackendOrderToFrontend(data)];
+      }
+    } catch {
+    }
+    return mockOrders.filter(o => 
+      o.trackingCode.toUpperCase().includes(q) ||
+      o.orderNumber.toUpperCase().includes(q) ||
+      o.client.phone.replace(/[\s\-\(\)]/g, '').includes(q.replace(/[\s\-\(\)]/g, ''))
+    );
   },
 
   async getOrderByTrackingCode(code: string): Promise<Order | null> {
@@ -245,21 +341,23 @@ export const api = {
         const data = await res.json();
         return mapBackendOrderToFrontend(data);
       }
-    } catch (err) {
-      console.warn('Live backend tracking failed, using local cache:', err);
+    } catch {
     }
     const cleaned = code.trim().toUpperCase();
-    const order = mockOrders.find(o => o.trackingCode.toUpperCase() === cleaned || o.orderNumber.toUpperCase() === cleaned);
+    const order = mockOrders.find(o => 
+      o.trackingCode.toUpperCase() === cleaned || 
+      o.orderNumber.toUpperCase() === cleaned
+    );
     return order ? { ...order } : null;
   },
 
   async createOrder(payload: CreateOrderPayload): Promise<Order> {
     try {
-      const token = await getAuthToken();
+      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
       const res = await fetch(`${API_BASE_URL}/orders`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -278,39 +376,35 @@ export const api = {
       });
       if (res.ok) {
         const data = await res.json();
-        const created = mapBackendOrderToFrontend(data);
-        mockOrders = [created, ...mockOrders];
-        return created;
+        return mapBackendOrderToFrontend(data);
       }
-    } catch (err) {
-      console.warn('Live backend createOrder failed, using local cache:', err);
+    } catch {
     }
 
-    // Local fallback
-    const nextId = mockOrders.length + 1;
-    const year = new Date().getFullYear();
-    const orderNumber = `SRV-${year}-${String(nextId).padStart(4, '0')}`;
-    const randomHex = Math.random().toString(16).substring(2, 8).toUpperCase();
-    const trackingCode = `TRK-${randomHex}`;
+    const nextId = mockOrders.length > 0 ? Math.max(...mockOrders.map(o => o.id)) + 1 : 1;
+    const padNum = String(nextId).padStart(4, '0');
+    const orderNum = `SRV-2026-${padNum}`;
+    const trackCode = `TRK-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
     const newOrder: Order = {
       id: nextId,
-      orderNumber,
-      trackingCode,
+      orderNumber: orderNum,
+      trackingCode: trackCode,
       client: {
-        id: nextId + 10,
+        id: nextId,
         fullName: payload.clientName,
         phone: payload.clientPhone,
         email: payload.clientEmail
       },
       device: {
-        id: nextId + 20,
+        id: nextId,
         deviceType: payload.deviceType,
         brand: payload.brand,
         model: payload.model,
         serialNumber: payload.serialNumberOrImei,
         appearanceNotes: payload.appearanceNotes
       },
+      technicianName: 'Черговий майстер',
       status: 'NEW',
       priority: payload.priority,
       defectDescription: payload.defectDescription,
@@ -325,43 +419,36 @@ export const api = {
     return newOrder;
   },
 
-  async updateOrderStatus(orderId: number, newStatus: OrderStatus): Promise<Order> {
+  async updateOrderStatus(orderId: number, status: OrderStatus): Promise<Order> {
     try {
-      const token = await getAuthToken();
-      const res = await fetch(`${API_BASE_URL}/orders/${orderId}/status`, {
-        method: 'PATCH',
+      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+      const res = await fetch(`${API_BASE_URL}/orders/${orderId}/status?status=${status}`, {
+        method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status: newStatus })
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
       });
       if (res.ok) {
         const data = await res.json();
         return mapBackendOrderToFrontend(data);
       }
-    } catch (err) {
-      console.warn('Live backend updateStatus failed, using local cache:', err);
+    } catch {
     }
 
-    const index = mockOrders.findIndex(o => o.id === orderId);
-    if (index === -1) throw new Error('Замовлення не знайдено');
-    
-    const updated = { ...mockOrders[index], status: newStatus };
-    if (newStatus === 'READY_FOR_PICKUP' || newStatus === 'COMPLETED') {
-      updated.completedAt = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const found = mockOrders.find(o => o.id === orderId);
+    if (found) {
+      found.status = status;
+      return { ...found };
     }
-    mockOrders[index] = updated;
-    return updated;
+    throw new Error('Order not found');
   },
 
   async getSpareParts(): Promise<SparePart[]> {
     try {
-      const token = await getAuthToken();
+      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
       const res = await fetch(`${API_BASE_URL}/warehouse/parts`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         }
       });
       if (res.ok) {
@@ -377,8 +464,7 @@ export const api = {
           purchasePrice: Number(p.purchasePrice)
         }));
       }
-    } catch (err) {
-      console.warn('Live backend getSpareParts failed, using local cache:', err);
+    } catch {
     }
     return [...mockSpareParts];
   }

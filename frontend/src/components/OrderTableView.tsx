@@ -1,20 +1,16 @@
 import React from 'react';
-import type { Order, OrderStatus, AppRole } from '../types';
+import type { Order, OrderStatus } from '../types';
 import { statusConfig } from './OrderCard';
-import { ArrowRight, Check, Copy, Search } from 'lucide-react';
+import { ArrowRight, Check, Copy } from 'lucide-react';
 
 interface OrderTableViewProps {
   orders: Order[];
   onStatusChange: (orderId: number, newStatus: OrderStatus) => void;
-  currentRole?: AppRole;
-  onSelectTracking?: (trackingCode: string) => void;
 }
 
 export const OrderTableView: React.FC<OrderTableViewProps> = ({ 
   orders, 
-  onStatusChange, 
-  currentRole = 'ADMIN',
-  onSelectTracking 
+  onStatusChange 
 }) => {
   const [copiedId, setCopiedId] = React.useState<number | null>(null);
 
@@ -32,14 +28,12 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({
             <tr>
               <th className="py-3 px-4">№ Замовлення</th>
               <th className="py-3 px-4">Трек-код</th>
-              <th className="py-3 px-4">
-                {currentRole === 'ADMIN' ? 'Клієнт / Телефон' : 'Майстер / Прийом'}
-              </th>
+              <th className="py-3 px-4">Клієнт / Телефон</th>
               <th className="py-3 px-4">Пристрій</th>
               <th className="py-3 px-4">Несправність</th>
               <th className="py-3 px-4 text-center">Статус</th>
               <th className="py-3 px-4 text-right">Сума</th>
-              <th className="py-3 px-4 text-right">{currentRole === 'ADMIN' ? 'Дія' : 'Онлайн-статус'}</th>
+              <th className="py-3 px-4 text-right">Дія</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800/60 text-slate-300">
@@ -65,17 +59,8 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({
                     </button>
                   </td>
                   <td className="py-3 px-4">
-                    {currentRole === 'ADMIN' ? (
-                      <>
-                        <div className="font-medium text-white">{order.client.fullName}</div>
-                        <div className="text-[11px] text-slate-400 font-mono">{order.client.phone}</div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="font-medium text-white">{order.technicianName || 'Тарас Бондаренко'}</div>
-                        <div className="text-[11px] text-slate-400 font-mono">Прийом: {order.createdAt.substring(0, 10)}</div>
-                      </>
-                    )}
+                    <div className="font-medium text-white">{order.client.fullName}</div>
+                    <div className="text-[11px] text-slate-400 font-mono">{order.client.phone}</div>
                   </td>
                   <td className="py-3 px-4">
                     <span className="font-semibold text-slate-200">
@@ -95,26 +80,16 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({
                     {order.totalCost} ₴
                   </td>
                   <td className="py-3 px-4 text-right whitespace-nowrap">
-                    {currentRole === 'ADMIN' ? (
-                      statusInfo.nextStatus ? (
-                        <button
-                          onClick={() => onStatusChange(order.id, statusInfo.nextStatus!)}
-                          className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-[11px] transition-all inline-flex items-center gap-1 active:scale-95"
-                        >
-                          <span>{statusInfo.nextActionLabel}</span>
-                          <ArrowRight className="h-3 w-3" />
-                        </button>
-                      ) : (
-                        <span className="text-slate-500 text-[11px]">—</span>
-                      )
-                    ) : (
+                    {statusInfo.nextStatus ? (
                       <button
-                        onClick={() => onSelectTracking ? onSelectTracking(order.trackingCode) : handleCopy(order.id, order.trackingCode)}
-                        className="px-2.5 py-1 rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-medium text-[11px] transition-all inline-flex items-center gap-1 active:scale-95"
+                        onClick={() => onStatusChange(order.id, statusInfo.nextStatus!)}
+                        className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-[11px] transition-all inline-flex items-center gap-1 active:scale-95"
                       >
-                        <Search className="h-3 w-3" />
-                        <span>Перевірити</span>
+                        <span>{statusInfo.nextActionLabel}</span>
+                        <ArrowRight className="h-3 w-3" />
                       </button>
+                    ) : (
+                      <span className="text-slate-500 text-[11px]">—</span>
                     )}
                   </td>
                 </tr>
