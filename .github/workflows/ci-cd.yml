@@ -1,0 +1,103 @@
+name: RepairHub CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  backend-ci:
+    name: Backend Build & Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: service_center_db
+          POSTGRES_USER: devuser
+          POSTGRES_PASSWORD: devpassword
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Setup Database Schema
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          PGPASSWORD=devpassword psql -h localhost -U devuser -d service_center_db -f database/schema.sql
+          PGPASSWORD=devpassword psql -h localhost -U devuser -d service_center_db -f database/seed_data.sql
+
+      - name: Run Maven Tests
+        run: mvn -B clean test -f backend/pom.xml
+
+      - name: Package JAR Artifact
+        run: mvn -B package -DskipTests -f backend/pom.xml
+
+      - name: Upload Backend Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jar
+          path: backend/target/*.jar
+          retention-days: 5
+
+  frontend-ci:
+    name: Frontend Quality & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci --prefix frontend
+
+      - name: Build & Validate Types
+        run: npm run build --prefix frontend
+
+      - name: Upload Frontend Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 5
+
+  docker-verification:
+    name: Docker Containerization Build
+    needs: [backend-ci, frontend-ci]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Docker Compose Configuration
+        run: docker compose config
+
+      - name: Build Docker Compose Images
+        run: docker compose build

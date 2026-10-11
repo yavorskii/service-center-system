@@ -1,0 +1,61 @@
+services:
+  database:
+    image: postgres:16-alpine
+    container_name: repairhub-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: service_center_db
+      POSTGRES_USER: devuser
+      POSTGRES_PASSWORD: devpassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./database/seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devuser -d service_center_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - repairhub-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: repairhub-backend
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://database:5432/service_center_db
+      SPRING_DATASOURCE_USERNAME: devuser
+      SPRING_DATASOURCE_PASSWORD: devpassword
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    ports:
+      - "8080:8080"
+    networks:
+      - repairhub-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: repairhub-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    networks:
+      - repairhub-net
+
+volumes:
+  postgres_data:
+
+networks:
+  repairhub-net:
+    driver: bridge
