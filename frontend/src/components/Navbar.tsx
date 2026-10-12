@@ -50,8 +50,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-30 bg-[#111827]/95 backdrop-blur border-b border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between h-16 gap-2">
+          <div className="flex items-center gap-2.5 shrink-0">
             <button
               onClick={onBackToPortal}
               title="Перейти на клієнтський сайт"
@@ -65,18 +65,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-sm">
                 <Wrench className="h-4 w-4 text-white" />
               </div>
-              <div>
-                <span className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
-                  RepairHub <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">CRM</span>
-                </span>
-              </div>
+              <span className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
+                RepairHub <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">CRM</span>
+              </span>
             </div>
           </div>
 
-          <nav className="flex items-center space-x-1 sm:space-x-1.5 overflow-x-auto py-1">
+          <nav className="flex items-center gap-1 sm:gap-1.5 overflow-x-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-1 min-w-0">
             <button
               onClick={() => setActiveTab('orders')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 activeTab === 'orders'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
@@ -88,20 +86,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('warehouse')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 activeTab === 'warehouse'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
             >
               <Package className="h-3.5 w-3.5" />
-              <span>Склад деталей</span>
+              <span>Склад</span>
             </button>
 
             {(isAdmin || isManager) && (
               <button
                 onClick={() => setActiveTab('clients')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                   activeTab === 'clients'
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
@@ -115,7 +113,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {isAdmin && (
               <button
                 onClick={() => setActiveTab('staff')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                   activeTab === 'staff'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
@@ -128,7 +126,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               onClick={() => setActiveTab('tracking')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                 activeTab === 'tracking'
                   ? 'bg-slate-700 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
@@ -139,16 +137,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          <div className="flex items-center gap-2.5">
-            <div className={`hidden md:flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-medium ${badge.class}`}>
+          <div className="flex items-center gap-2 shrink-0">
+            <div className={`hidden lg:flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-medium ${badge.class}`}>
               <BadgeIcon className="h-3.5 w-3.5 shrink-0" />
-              <span>{currentUser.fullName}</span>
+              <span className="truncate max-w-[130px]">{currentUser.fullName}</span>
               <span className="text-[10px] opacity-75 font-mono">({badge.label})</span>
             </div>
 
             <button
               onClick={onOpenCreateModal}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1.5 active:scale-95"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1.5 active:scale-95 whitespace-nowrap"
             >
               <Plus className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Прийом техніки</span>
@@ -161,7 +159,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 hover:border-rose-500/30 border border-slate-700/60 transition-colors flex items-center gap-1 text-xs"
             >
               <LogOut className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">Вийти</span>
+              <span className="hidden xl:inline">Вийти</span>
             </button>
           </div>
         </div>
