@@ -65,7 +65,7 @@ class AuthControllerTest {
     void register_ValidationFailure_ReturnsBadRequest() throws Exception {
         RegisterRequest request = RegisterRequest.builder()
                 .username("new_user")
-                .password("123") // короткий пароль (< 6 символів)
+                .password("123")
                 .fullName("Тестовий Користувач")
                 .role(Role.ROLE_TECHNICIAN)
                 .build();

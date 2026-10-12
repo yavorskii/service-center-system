@@ -154,7 +154,6 @@ class OrderServiceTest {
         OrderResponse response = orderService.addPartToOrder(1L, request);
 
         assertNotNull(response);
-        // Залишок на складі зменшився з 10 до 8
         assertEquals(8, mockPart.getStockQuantity());
         verify(sparePartRepository, times(1)).save(mockPart);
         verify(orderPartRepository, times(1)).save(any(OrderPart.class));
@@ -165,7 +164,7 @@ class OrderServiceTest {
     void addPartToOrder_ThrowsInsufficientStock() {
         AddPartToOrderRequest request = AddPartToOrderRequest.builder()
                 .sparePartId(10L)
-                .quantity(20) // запитано 20, а в наявності лише 10
+                .quantity(20)
                 .build();
 
         when(orderRepository.findById(1L)).thenReturn(Optional.of(mockOrder));

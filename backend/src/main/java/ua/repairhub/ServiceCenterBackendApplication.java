@@ -36,7 +36,6 @@ public class ServiceCenterBackendApplication {
     private void initOrUpdateUser(UserRepository repo, PasswordEncoder encoder, String username, String rawPassword, String fullName, Role role, String phone) {
         repo.findByUsername(username).ifPresentOrElse(
                 user -> {
-                    // Update with valid BCrypt hash if necessary
                     if (!user.getPasswordHash().startsWith("$2a$") || user.getPasswordHash().endsWith("...")) {
                         user.setPasswordHash(encoder.encode(rawPassword));
                         user.setFullName(fullName);

@@ -28,7 +28,6 @@ class OrderControllerTest {
     @Test
     @DisplayName("GET /api/v1/tracking/{trackingCode} - Публічний доступ без авторизації повертає 200")
     void trackOrder_PublicAccess_Success() throws Exception {
-        // TRK-A8F91B was inserted by seed_data.sql in Lab 5
         mockMvc.perform(get("/api/v1/tracking/TRK-A8F91B"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderNumber").value("SRV-2026-0001"))

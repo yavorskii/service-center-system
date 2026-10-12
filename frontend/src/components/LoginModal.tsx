@@ -79,7 +79,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
               type="text"
               required
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                setError(null);
+              }}
               placeholder="admin_oleg"
               className="w-full px-3.5 py-2.5 bg-[#0B0F19] border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors font-mono"
             />
@@ -93,7 +96,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
               type="password"
               required
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError(null);
+              }}
               placeholder="••••••••"
               className="w-full px-3.5 py-2.5 bg-[#0B0F19] border border-slate-800 rounded-xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
             />
@@ -108,7 +114,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                 type="button"
                 onClick={() => handleQuickFill('admin_oleg', 'admin123')}
                 className={`p-2 rounded-lg border text-left transition-all ${
-                  username === 'admin_oleg'
+                  username === 'admin_oleg' && password === 'admin123'
                     ? 'border-blue-500/60 bg-blue-500/10 text-white'
                     : 'border-slate-800 bg-[#0B0F19] text-slate-400 hover:text-white hover:border-slate-700'
                 }`}
@@ -122,7 +128,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                 type="button"
                 onClick={() => handleQuickFill('mgr_alina', 'manager123')}
                 className={`p-2 rounded-lg border text-left transition-all ${
-                  username === 'mgr_alina'
+                  username === 'mgr_alina' && password === 'manager123'
                     ? 'border-blue-500/60 bg-blue-500/10 text-white'
                     : 'border-slate-800 bg-[#0B0F19] text-slate-400 hover:text-white hover:border-slate-700'
                 }`}
@@ -136,7 +142,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                 type="button"
                 onClick={() => handleQuickFill('tech_taras', 'tech123')}
                 className={`p-2 rounded-lg border text-left transition-all ${
-                  username === 'tech_taras'
+                  username === 'tech_taras' && password === 'tech123'
                     ? 'border-blue-500/60 bg-blue-500/10 text-white'
                     : 'border-slate-800 bg-[#0B0F19] text-slate-400 hover:text-white hover:border-slate-700'
                 }`}

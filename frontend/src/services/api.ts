@@ -1,6 +1,6 @@
 import type { Order, SparePart, CreateOrderPayload, OrderStatus, AuthUser } from '../types';
 
-const API_BASE_URL = 'http://localhost:8080/api/v1';
+const API_BASE_URL = typeof window !== 'undefined' && window.location.port === '3000' ? '/api/v1' : 'http://localhost:8080/api/v1';
 
 let authToken: string | null = typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null;
 
@@ -249,34 +249,36 @@ export const api = {
         }
         return user;
       }
-    } catch {
+      const errData = await res.json().catch(() => null);
+      throw new Error(errData?.message || "Невірне ім'я користувача або пароль");
+    } catch (err: any) {
+      if (err.message && err.message !== 'Failed to fetch' && !err.message.includes('NetworkError') && !err.message.includes('Load failed')) {
+        throw err;
+      }
+      const validAccounts: Record<string, { pass: string; role: string; name: string }> = {
+        'admin_oleg': { pass: 'admin123', role: 'ROLE_ADMIN', name: 'Олег Петренко' },
+        'mgr_alina': { pass: 'manager123', role: 'ROLE_MANAGER', name: 'Аліна Ковальчук' },
+        'tech_taras': { pass: 'tech123', role: 'ROLE_TECHNICIAN', name: 'Тарас Бондаренко' }
+      };
+      const found = validAccounts[username];
+      if (found && found.pass === password) {
+        const mockToken = 'mock-jwt-token-' + Date.now();
+        authToken = mockToken;
+        const user: AuthUser = {
+          username,
+          fullName: found.name,
+          role: found.role,
+          token: mockToken
+        };
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('repairhub_token', mockToken);
+          localStorage.setItem('repairhub_user', JSON.stringify(user));
+        }
+        return user;
+      }
+      throw new Error("Невірне ім'я користувача або пароль");
     }
-
-    let role = 'ROLE_TECHNICIAN';
-    let fullName = 'Тарас Бондаренко';
-    if (username.toLowerCase().includes('admin') || username === 'admin_oleg') {
-      role = 'ROLE_ADMIN';
-      fullName = 'Владислав Яворський (Адмін)';
-    } else if (username.toLowerCase().includes('mgr') || username === 'mgr_alina') {
-      role = 'ROLE_MANAGER';
-      fullName = 'Аліна Ковальчук (Менеджер)';
-    }
-
-    const mockToken = 'mock-jwt-token-' + Date.now();
-    authToken = mockToken;
-    const user: AuthUser = {
-      username,
-      fullName,
-      role,
-      token: mockToken
-    };
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('repairhub_token', mockToken);
-      localStorage.setItem('repairhub_user', JSON.stringify(user));
-    }
-    return user;
   },
-
   logout(): void {
     authToken = null;
     if (typeof window !== 'undefined') {

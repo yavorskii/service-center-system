@@ -52,7 +52,6 @@ public class OrderService {
 
     @Transactional
     public OrderResponse createOrder(CreateOrderRequest request) {
-        // 1. Отримати або створити клієнта
         Client client = clientRepository.findByPhone(request.getClientPhone())
                 .orElseGet(() -> {
                     Client newClient = Client.builder()
@@ -64,7 +63,6 @@ public class OrderService {
                     return clientRepository.save(newClient);
                 });
 
-        // 2. Створити та прив'язати пристрій
         Device device = Device.builder()
                 .client(client)
                 .deviceType(request.getDeviceType())
@@ -75,11 +73,9 @@ public class OrderService {
                 .build();
         device = deviceRepository.save(device);
 
-        // 3. Згенерувати унікальний номер замовлення та трек-код
         String orderNumber = generateNextOrderNumber();
         String trackingCode = generateUniqueTrackingCode();
 
-        // 4. Створити замовлення
         Order order = Order.builder()
                 .orderNumber(orderNumber)
                 .trackingCode(trackingCode)
@@ -139,17 +135,14 @@ public class OrderService {
         SparePart sparePart = sparePartRepository.findById(request.getSparePartId())
                 .orElseThrow(() -> new ResourceNotFoundException("Деталь з ID " + request.getSparePartId() + " не знайдено"));
 
-        // Перевірка наявності необхідної кількості деталей на складі
         if (sparePart.getStockQuantity() < request.getQuantity()) {
             throw new InsufficientStockException("Недостатньо деталей на складі для " + sparePart.getName() +
                     ": доступно " + sparePart.getStockQuantity() + " шт., запитано " + request.getQuantity() + " шт.");
         }
 
-        // Автоматичне списання зі складу
         sparePart.setStockQuantity(sparePart.getStockQuantity() - request.getQuantity());
         sparePartRepository.save(sparePart);
 
-        // Прикріплення деталі до замовлення
         OrderPart orderPart = OrderPart.builder()
                 .order(order)
                 .sparePart(sparePart)
@@ -158,7 +151,6 @@ public class OrderService {
                 .build();
         orderPartRepository.save(orderPart);
 
-        // Перерахунок загальної вартості замовлення
         recalculateOrderTotalCost(order);
 
         order = orderRepository.save(order);
