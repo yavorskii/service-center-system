@@ -148,7 +148,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSucce
                 }`}
               >
                 <Wrench className="h-3.5 w-3.5 text-amber-400 mb-1" />
-                <div className="text-[11px] font-semibold">Майстер</div>
+                <div className="text-[11px] font-semibold">Прийомщик</div>
                 <div className="text-[9px] text-slate-500 font-mono">tech_taras</div>
               </button>
             </div>
