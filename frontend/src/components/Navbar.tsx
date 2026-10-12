@@ -1,10 +1,10 @@
 import React from 'react';
-import { Wrench, Package, Search, Plus, Laptop, ShieldCheck, UserCheck, LogOut, ArrowLeft } from 'lucide-react';
+import { Wrench, Package, Search, Plus, Laptop, ShieldCheck, UserCheck, LogOut, ArrowLeft, Users, Shield } from 'lucide-react';
 import type { AuthUser } from '../types';
 
 interface NavbarProps {
-  activeTab: 'orders' | 'warehouse' | 'tracking';
-  setActiveTab: (tab: 'orders' | 'warehouse' | 'tracking') => void;
+  activeTab: 'orders' | 'warehouse' | 'tracking' | 'clients' | 'staff';
+  setActiveTab: (tab: 'orders' | 'warehouse' | 'tracking' | 'clients' | 'staff') => void;
   onOpenCreateModal: () => void;
   currentUser: AuthUser;
   onLogout: () => void;
@@ -19,7 +19,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   onBackToPortal,
 }) => {
-  const isManagerOrAdmin = currentUser.role === 'ROLE_ADMIN' || currentUser.role === 'ROLE_MANAGER';
+  const isAdmin = currentUser.role === 'ROLE_ADMIN';
+  const isManager = currentUser.role === 'ROLE_MANAGER';
 
   const getRoleBadge = (role: string) => {
     if (role === 'ROLE_ADMIN') {
@@ -37,7 +38,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       };
     }
     return {
-      label: 'Майстер-інженер',
+      label: 'Прийомщик техніки',
       icon: Wrench,
       class: 'bg-amber-500/10 text-amber-400 border-amber-500/20'
     };
@@ -72,10 +73,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          <nav className="flex items-center space-x-1 sm:space-x-1.5">
+          <nav className="flex items-center space-x-1 sm:space-x-1.5 overflow-x-auto py-1">
             <button
               onClick={() => setActiveTab('orders')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'orders'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
@@ -85,25 +86,51 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>Замовлення</span>
             </button>
 
-            {isManagerOrAdmin && (
+            <button
+              onClick={() => setActiveTab('warehouse')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'warehouse'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
+              }`}
+            >
+              <Package className="h-3.5 w-3.5" />
+              <span>Склад деталей</span>
+            </button>
+
+            {(isAdmin || isManager) && (
               <button
-                onClick={() => setActiveTab('warehouse')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
-                  activeTab === 'warehouse'
+                onClick={() => setActiveTab('clients')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'clients'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <Users className="h-3.5 w-3.5" />
+                <span>Клієнти</span>
+              </button>
+            )}
+
+            {isAdmin && (
+              <button
+                onClick={() => setActiveTab('staff')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+                  activeTab === 'staff'
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
                 }`}
               >
-                <Package className="h-3.5 w-3.5" />
-                <span>Склад деталей</span>
+                <Shield className="h-3.5 w-3.5" />
+                <span>Персонал</span>
               </button>
             )}
 
             <button
               onClick={() => setActiveTab('tracking')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'tracking'
-                  ? 'bg-emerald-600 text-white shadow-sm'
+                  ? 'bg-slate-700 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
             >

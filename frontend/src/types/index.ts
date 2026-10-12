@@ -26,6 +26,26 @@ export interface Client {
   notes?: string;
 }
 
+export interface ClientRecord {
+  id: number;
+  fullName: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  notes?: string;
+  ordersCount?: number;
+}
+
+export interface StaffMember {
+  id: number;
+  username: string;
+  fullName: string;
+  role: string;
+  phone?: string;
+  isActive: boolean;
+  createdAt?: string;
+}
+
 export interface Device {
   id: number;
   deviceType: string;

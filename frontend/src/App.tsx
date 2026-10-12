@@ -10,6 +10,8 @@ import { OrderTableView } from './components/OrderTableView';
 import { OrderCreateModal } from './components/OrderCreateModal';
 import { PublicTrackingView } from './components/PublicTrackingView';
 import { WarehouseView } from './components/WarehouseView';
+import { ClientsView } from './components/ClientsView';
+import { StaffView } from './components/StaffView';
 import { Search, RefreshCw, CheckCircle2, LayoutGrid, List, X } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -19,7 +21,7 @@ export const App: React.FC = () => {
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'orders' | 'warehouse' | 'tracking'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'warehouse' | 'tracking' | 'clients' | 'staff'>('orders');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,6 +56,7 @@ export const App: React.FC = () => {
   const handleLogout = () => {
     api.logout();
     setCurrentUser(null);
+    setActiveTab('orders');
     showToast('Ви вийшли з внутрішньої панелі CRM');
   };
 
@@ -67,6 +70,18 @@ export const App: React.FC = () => {
     const updated = await api.updateOrderStatus(orderId, newStatus);
     setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
     showToast(`Статус ${updated.orderNumber} змінено на "${newStatus}"`);
+  };
+
+  const handleDeleteOrder = async (orderId: number) => {
+    if (currentUser?.role !== 'ROLE_ADMIN') return;
+    if (!window.confirm('Ви дійсно бажаєте безповоротно видалити це замовлення?')) return;
+    try {
+      await api.deleteOrder(orderId);
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+      showToast('Замовлення успішно видалено з бази даних');
+    } catch {
+      showToast('Помилка видалення замовлення');
+    }
   };
 
   const statusCounts = useMemo(() => {
@@ -164,12 +179,20 @@ export const App: React.FC = () => {
         )}
 
         {activeTab === 'warehouse' && (
-          <WarehouseView />
+          <WarehouseView currentUser={currentUser} />
+        )}
+
+        {activeTab === 'clients' && (
+          <ClientsView />
+        )}
+
+        {activeTab === 'staff' && currentUser.role === 'ROLE_ADMIN' && (
+          <StaffView />
         )}
 
         {activeTab === 'orders' && (
           <>
-            <StatsCards orders={orders} />
+            <StatsCards orders={orders} currentUser={currentUser} />
 
             <div className="space-y-3 mb-5">
               <div className="flex items-center justify-between gap-3">
@@ -270,14 +293,18 @@ export const App: React.FC = () => {
                   <OrderCard
                     key={order.id}
                     order={order}
+                    currentUser={currentUser}
                     onStatusChange={handleStatusChange}
+                    onDeleteOrder={handleDeleteOrder}
                   />
                 ))}
               </div>
             ) : (
               <OrderTableView
                 orders={filteredOrders}
+                currentUser={currentUser}
                 onStatusChange={handleStatusChange}
+                onDeleteOrder={handleDeleteOrder}
               />
             )}
           </>

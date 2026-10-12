@@ -1,6 +1,8 @@
-import type { Order, SparePart, CreateOrderPayload, OrderStatus, AuthUser } from '../types';
+import type { Order, SparePart, CreateOrderPayload, OrderStatus, AuthUser, ClientRecord, StaffMember } from '../types';
 
-const API_BASE_URL = typeof window !== 'undefined' && window.location.port === '3000' ? '/api/v1' : 'http://localhost:8080/api/v1';
+const API_BASE_URL = typeof window !== 'undefined' && window.location.port === '3000'
+  ? '/api/v1'
+  : 'http://localhost:8080/api/v1';
 
 let authToken: string | null = typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null;
 
@@ -128,24 +130,21 @@ let mockOrders: Order[] = [
       id: 3,
       fullName: 'Сергій Павленко',
       phone: '+380631122334',
-      email: 'serg.p@gmail.com'
+      email: 'pavlenko.s@gmail.com'
     },
     device: {
       id: 3,
       deviceType: 'Планшет',
       brand: 'Samsung',
       model: 'Galaxy Tab S8',
-      serialNumber: 'SN-SAMS-44190',
-      imei: '359871029384756',
-      appearanceNotes: 'Стан ідеальний, не вмикається після води',
-      specs: { screen: '11 inch', storage: '128GB' }
+      serialNumber: 'SN-SMG-44122',
+      appearanceNotes: 'Без видимих пошкоджень'
     },
     technicianName: 'Тарас Бондаренко',
     status: 'NEW',
-    priority: 'URGENT',
+    priority: 'MEDIUM',
     defectDescription: 'Потрапила волога, перестав заряджатися',
-    diagnosticsNotes: 'Прийнято на термінову діагностику.',
-    estimatedCost: 500,
+    estimatedCost: 0,
     totalCost: 0,
     createdAt: '2026-09-22 09:00',
     parts: [],
@@ -226,6 +225,19 @@ let mockSpareParts: SparePart[] = [
   { id: 4, sku: 'CON-TYPEC-GEN', name: 'Роз\'єм живлення USB Type-C', category: 'Роз\'єми', stockQuantity: 50, minStockLimit: 10, retailPrice: 120, purchasePrice: 35 }
 ];
 
+let mockClients: ClientRecord[] = [
+  { id: 1, fullName: 'Іван Сидоренко', phone: '+380671234567', email: 'ivan.sydor@gmail.com', address: 'м. Київ, вул. Хрещатик, 10', notes: 'Постійний клієнт, знижка 5%', ordersCount: 2 },
+  { id: 2, fullName: 'Марія Василенко', phone: '+380509876543', email: 'mariya.vas@ukr.net', address: 'м. Київ, пр. Перемоги, 45', notes: 'Корпоративний клієнт (ТОВ Альфа)', ordersCount: 1 },
+  { id: 3, fullName: 'Сергій Павленко', phone: '+380631122334', email: 'pavlenko.s@gmail.com', address: 'м. Івано-Франківськ, вул. Незалежності, 12', notes: 'Термінове обслуговування', ordersCount: 1 },
+  { id: 4, fullName: 'Олексій Мельник', phone: '+380679998877', email: 'oleksiy@example.com', address: 'м. Львів, вул. Городоцька, 82', notes: 'Звернення по гарантії', ordersCount: 1 }
+];
+
+let mockStaff: StaffMember[] = [
+  { id: 1, username: 'admin_oleg', fullName: 'Олег Петренко', role: 'ROLE_ADMIN', phone: '+380671112233', isActive: true, createdAt: '2026-09-01' },
+  { id: 2, username: 'mgr_alina', fullName: 'Аліна Ковальчук', role: 'ROLE_MANAGER', phone: '+380502223344', isActive: true, createdAt: '2026-09-05' },
+  { id: 3, username: 'tech_taras', fullName: 'Тарас Бондаренко', role: 'ROLE_TECHNICIAN', phone: '+380633334455', isActive: true, createdAt: '2026-09-10' }
+];
+
 export const api = {
   async login(username: string, password: string): Promise<AuthUser> {
     try {
@@ -279,6 +291,7 @@ export const api = {
       throw new Error("Невірне ім'я користувача або пароль");
     }
   },
+
   logout(): void {
     authToken = null;
     if (typeof window !== 'undefined') {
@@ -406,7 +419,7 @@ export const api = {
         serialNumber: payload.serialNumberOrImei,
         appearanceNotes: payload.appearanceNotes
       },
-      technicianName: 'Черговий майстер',
+      technicianName: 'Тарас Бондаренко',
       status: 'NEW',
       priority: payload.priority,
       defectDescription: payload.defectDescription,
@@ -424,11 +437,13 @@ export const api = {
   async updateOrderStatus(orderId: number, status: OrderStatus): Promise<Order> {
     try {
       const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
-      const res = await fetch(`${API_BASE_URL}/orders/${orderId}/status?status=${status}`, {
-        method: 'PUT',
+      const res = await fetch(`${API_BASE_URL}/orders/${orderId}/status`, {
+        method: 'PATCH',
         headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        }
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status })
       });
       if (res.ok) {
         const data = await res.json();
@@ -443,6 +458,20 @@ export const api = {
       return { ...found };
     }
     throw new Error('Order not found');
+  },
+
+  async deleteOrder(orderId: number): Promise<void> {
+    try {
+      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+      await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
+    } catch {
+    }
+    mockOrders = mockOrders.filter(o => o.id !== orderId);
   },
 
   async getSpareParts(): Promise<SparePart[]> {
@@ -469,5 +498,92 @@ export const api = {
     } catch {
     }
     return [...mockSpareParts];
+  },
+
+  async createSparePart(part: Omit<SparePart, 'id'>): Promise<SparePart> {
+    try {
+      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+      const res = await fetch(`${API_BASE_URL}/warehouse/parts`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(part)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const created: SparePart = {
+          id: data.id,
+          sku: data.sku,
+          name: data.name,
+          category: data.category,
+          stockQuantity: data.stockQuantity,
+          minStockLimit: data.minStockLimit,
+          retailPrice: Number(data.retailPrice),
+          purchasePrice: Number(data.purchasePrice)
+        };
+        mockSpareParts = [created, ...mockSpareParts];
+        return created;
+      }
+    } catch {
+    }
+
+    const nextId = mockSpareParts.length > 0 ? Math.max(...mockSpareParts.map(p => p.id)) + 1 : 1;
+    const created: SparePart = { ...part, id: nextId };
+    mockSpareParts = [created, ...mockSpareParts];
+    return created;
+  },
+
+  async getClients(): Promise<ClientRecord[]> {
+    try {
+      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+      const res = await fetch(`${API_BASE_URL}/clients`, {
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Accept': 'application/json'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.map((c: any) => ({
+          id: c.id,
+          fullName: c.fullName,
+          phone: c.phone,
+          email: c.email,
+          address: c.address,
+          notes: c.notes,
+          ordersCount: mockOrders.filter(o => o.client.phone === c.phone).length
+        }));
+      }
+    } catch {
+    }
+    return [...mockClients];
+  },
+
+  async getStaff(): Promise<StaffMember[]> {
+    try {
+      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+      const res = await fetch(`${API_BASE_URL}/users`, {
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Accept': 'application/json'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.map((u: any) => ({
+          id: u.id,
+          username: u.username,
+          fullName: u.fullName,
+          role: u.role,
+          phone: u.phone,
+          isActive: u.isActive,
+          createdAt: u.createdAt
+        }));
+      }
+    } catch {
+    }
+    return [...mockStaff];
   }
 };

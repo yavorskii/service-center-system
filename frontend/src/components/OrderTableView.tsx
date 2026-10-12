@@ -1,18 +1,25 @@
 import React from 'react';
-import type { Order, OrderStatus } from '../types';
+import type { Order, OrderStatus, AuthUser } from '../types';
 import { statusConfig } from './OrderCard';
-import { ArrowRight, Check, Copy } from 'lucide-react';
+import { ArrowRight, Check, Copy, Trash2 } from 'lucide-react';
 
 interface OrderTableViewProps {
   orders: Order[];
+  currentUser: AuthUser;
   onStatusChange: (orderId: number, newStatus: OrderStatus) => void;
+  onDeleteOrder?: (orderId: number) => void;
 }
 
 export const OrderTableView: React.FC<OrderTableViewProps> = ({ 
   orders, 
-  onStatusChange 
+  currentUser,
+  onStatusChange,
+  onDeleteOrder
 }) => {
   const [copiedId, setCopiedId] = React.useState<number | null>(null);
+
+  const isAdmin = currentUser.role === 'ROLE_ADMIN';
+  const isTechnician = currentUser.role === 'ROLE_TECHNICIAN';
 
   const handleCopy = (id: number, code: string) => {
     navigator.clipboard.writeText(code);
@@ -39,6 +46,10 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({
           <tbody className="divide-y divide-slate-800/60 text-slate-300">
             {orders.map((order) => {
               const statusInfo = statusConfig[order.status];
+              const canAdvance = statusInfo.nextStatus && 
+                !(isTechnician && order.status === 'READY_FOR_PICKUP') &&
+                !(isTechnician && order.status === 'PENDING_APPROVAL');
+
               return (
                 <tr key={order.id} className="hover:bg-slate-800/40 transition-colors">
                   <td className="py-3 px-4 font-mono font-bold text-white whitespace-nowrap">
@@ -80,17 +91,29 @@ export const OrderTableView: React.FC<OrderTableViewProps> = ({
                     {order.totalCost} ₴
                   </td>
                   <td className="py-3 px-4 text-right whitespace-nowrap">
-                    {statusInfo.nextStatus ? (
-                      <button
-                        onClick={() => onStatusChange(order.id, statusInfo.nextStatus!)}
-                        className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-[11px] transition-all inline-flex items-center gap-1 active:scale-95"
-                      >
-                        <span>{statusInfo.nextActionLabel}</span>
-                        <ArrowRight className="h-3 w-3" />
-                      </button>
-                    ) : (
-                      <span className="text-slate-500 text-[11px]">—</span>
-                    )}
+                    <div className="flex items-center justify-end gap-1.5">
+                      {canAdvance ? (
+                        <button
+                          onClick={() => onStatusChange(order.id, statusInfo.nextStatus!)}
+                          className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium text-[11px] transition-all inline-flex items-center gap-1 active:scale-95"
+                        >
+                          <span>{statusInfo.nextActionLabel}</span>
+                          <ArrowRight className="h-3 w-3" />
+                        </button>
+                      ) : (
+                        <span className="text-slate-500 text-[11px] px-2 py-1">—</span>
+                      )}
+
+                      {isAdmin && onDeleteOrder && (
+                        <button
+                          onClick={() => onDeleteOrder(order.id)}
+                          title="Видалити замовлення"
+                          className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

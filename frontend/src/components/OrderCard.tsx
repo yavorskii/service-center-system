@@ -1,24 +1,43 @@
 import React, { useState } from 'react';
-import type { Order, OrderStatus } from '../types';
-import { Smartphone, Laptop, Tablet, Phone, User, Check, Copy, ArrowRight, MoreHorizontal, Printer } from 'lucide-react';
+import type { Order, OrderStatus, AuthUser } from '../types';
+import { 
+  Laptop, 
+  Smartphone, 
+  Tablet, 
+  Copy, 
+  Check, 
+  ArrowRight, 
+  User, 
+  Phone, 
+  MoreHorizontal, 
+  Printer,
+  Trash2
+} from 'lucide-react';
 
 interface OrderCardProps {
   order: Order;
+  currentUser: AuthUser;
   onStatusChange: (orderId: number, newStatus: OrderStatus) => void;
+  onDeleteOrder?: (orderId: number) => void;
 }
 
-export const statusConfig: Record<OrderStatus, { label: string; badgeClass: string; nextStatus?: OrderStatus; nextActionLabel?: string }> = {
+export const statusConfig: Record<OrderStatus, { 
+  label: string; 
+  badgeClass: string; 
+  nextStatus?: OrderStatus;
+  nextActionLabel?: string;
+}> = {
   NEW: { 
-    label: 'Нове', 
+    label: 'Новий прийом', 
     badgeClass: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
     nextStatus: 'IN_DIAGNOSTICS',
     nextActionLabel: 'На діагностику'
   },
   IN_DIAGNOSTICS: { 
     label: 'Діагностика', 
-    badgeClass: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    badgeClass: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
     nextStatus: 'IN_PROGRESS',
-    nextActionLabel: 'В роботу'
+    nextActionLabel: 'Взяти в ремонт'
   },
   PENDING_APPROVAL: { 
     label: 'Узгодження', 
@@ -48,9 +67,17 @@ export const statusConfig: Record<OrderStatus, { label: string; badgeClass: stri
   },
 };
 
-export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) => {
+export const OrderCard: React.FC<OrderCardProps> = ({ 
+  order, 
+  currentUser,
+  onStatusChange, 
+  onDeleteOrder 
+}) => {
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const isAdmin = currentUser.role === 'ROLE_ADMIN';
+  const isTechnician = currentUser.role === 'ROLE_TECHNICIAN';
 
   const getDeviceIcon = (type: string) => {
     const lower = type.toLowerCase();
@@ -61,6 +88,13 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) =
 
   const DeviceIcon = getDeviceIcon(order.device.deviceType);
   const statusInfo = statusConfig[order.status];
+
+  const canAdvanceStatus = () => {
+    if (!statusInfo.nextStatus) return false;
+    if (isTechnician && order.status === 'READY_FOR_PICKUP') return false;
+    if (isTechnician && order.status === 'PENDING_APPROVAL') return false;
+    return true;
+  };
 
   const handleCopyTrack = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -155,7 +189,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) =
         </div>
 
         <div className="flex items-center gap-1.5">
-          {statusInfo.nextStatus && (
+          {canAdvanceStatus() && statusInfo.nextStatus && (
             <button
               onClick={() => onStatusChange(order.id, statusInfo.nextStatus!)}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1 active:scale-95"
@@ -176,7 +210,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) =
 
             {menuOpen && (
               <div 
-                className="absolute right-0 bottom-full mb-1 w-44 bg-slate-900 border border-slate-700/80 rounded-lg shadow-xl py-1 z-20 text-xs"
+                className="absolute right-0 bottom-full mb-1 w-48 bg-slate-900 border border-slate-700/80 rounded-lg shadow-xl py-1 z-20 text-xs"
                 onMouseLeave={() => setMenuOpen(false)}
               >
                 <button
@@ -197,6 +231,19 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) =
                   <Copy className="h-3.5 w-3.5 text-slate-400" />
                   <span>Скопіювати трек-код</span>
                 </button>
+
+                {isAdmin && onDeleteOrder && (
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDeleteOrder(order.id);
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-rose-400 hover:bg-rose-950/40 flex items-center gap-2 border-t border-slate-800 mt-1"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-rose-400" />
+                    <span>Видалити замовлення</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
