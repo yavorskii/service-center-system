@@ -24,3 +24,15 @@ service-center-system/
 - **Database:** `service_center_db`
 - **User:** `devuser`
 - **Password:** `devpassword`
+
+##  Швидкий запуск
+
+```bash
+# Запуск усіх сервісів (PostgreSQL + Backend + Frontend)
+./start.sh
+```
+
+- **Backend API:** http://localhost:8080
+- **Frontend UI:** http://localhost:5173
+- **Database:** PostgreSQL на порту 5432
+
