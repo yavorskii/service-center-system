@@ -17,7 +17,8 @@ import {
   Plus, 
   AlertCircle,
   Copy,
-  Check
+  Check,
+  Mail
 } from 'lucide-react';
 import type { Order, OrderStatus } from '../types';
 import { api } from '../services/api';
@@ -25,6 +26,8 @@ import { api } from '../services/api';
 interface ClientPortalProps {
   onOpenLogin: () => void;
   onOpenCreateModal: () => void;
+  onOpenRegister?: () => void;
+  onOpenInbox?: () => void;
 }
 
 const statusWorkflow: { key: OrderStatus; label: string; desc: string }[] = [
@@ -38,7 +41,9 @@ const statusWorkflow: { key: OrderStatus; label: string; desc: string }[] = [
 
 export const ClientPortal: React.FC<ClientPortalProps> = ({
   onOpenLogin,
-  onOpenCreateModal
+  onOpenCreateModal,
+  onOpenRegister,
+  onOpenInbox
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Order[] | null>(null);
@@ -119,23 +124,42 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               </button>
             </nav>
 
-            <div className="flex items-center gap-2.5">
-              <button
-                onClick={onOpenCreateModal}
-                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1.5 active:scale-95"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Залишити заявку</span>
-              </button>
+                        <div className="flex items-center gap-2">
+              {onOpenInbox && (
+                <button
+                  onClick={onOpenInbox}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700 transition flex items-center gap-1.5"
+                  title="Поштовий клієнт"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Пошта</span>
+                </button>
+              )}
+
+              {onOpenRegister && (
+                <button
+                  onClick={onOpenRegister}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 transition flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  <span>Реєстрація</span>
+                </button>
+              )}
 
               <button
                 onClick={onOpenLogin}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-all flex items-center gap-1.5"
-                title="Вхід у внутрішню CRM-панель для адміністраторів та майстрів"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow transition flex items-center gap-1.5"
               >
-                <Lock className="h-3.5 w-3.5 text-blue-400" />
-                <span className="hidden sm:inline">Вхід для персоналу</span>
-                <span className="sm:hidden">CRM</span>
+                <Lock className="h-3.5 w-3.5" />
+                <span>Вхід</span>
+              </button>
+
+              <button
+                onClick={onOpenCreateModal}
+                className="hidden md:flex px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition items-center gap-1.5"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>Заявка</span>
               </button>
             </div>
           </div>

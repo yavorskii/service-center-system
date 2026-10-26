@@ -9,13 +9,18 @@ export type OrderStatus =
 
 export type OrderPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
-export type UserRole = 'ROLE_ADMIN' | 'ROLE_MANAGER' | 'ROLE_TECHNICIAN' | 'ROLE_CLIENT';
+export type UserRole = 'ROLE_ADMIN' | 'ROLE_MANAGER' | 'ROLE_TECHNICIAN' | 'ROLE_USER' | 'ROLE_CLIENT';
 
 export interface AuthUser {
   username: string;
   fullName: string;
   role: string;
   token: string;
+  email?: string;
+  emailVerified?: boolean;
+  twoFactorEnabled?: boolean;
+  twoFactorRequired?: boolean;
+  tempToken?: string;
 }
 
 export interface Client {
@@ -42,6 +47,11 @@ export interface StaffMember {
   fullName: string;
   role: string;
   phone?: string;
+  email?: string;
+  emailVerified?: boolean;
+  isLocked?: boolean;
+  failedLoginAttempts?: number;
+  twoFactorEnabled?: boolean;
   isActive: boolean;
   createdAt?: string;
 }
@@ -112,4 +122,41 @@ export interface CreateOrderPayload {
   defectDescription: string;
   priority: OrderPriority;
   estimatedCost: number;
+}
+
+export interface SecurityAuditLog {
+  id: number;
+  username: string;
+  ipAddress: string;
+  attemptTime: string;
+  status: string;
+  details: string;
+}
+
+export interface MockEmail {
+  id: string;
+  recipient: string;
+  subject: string;
+  body: string;
+  sentAt: string;
+  type: string;
+}
+
+export interface UserSecurityProfile {
+  id: number;
+  username: string;
+  fullName: string;
+  email: string;
+  role: string;
+  phone?: string;
+  emailVerified: boolean;
+  twoFactorEnabled: boolean;
+  failedLoginAttempts: number;
+  isLocked: boolean;
+  authProvider: string;
+}
+
+export interface CaptchaData {
+  token: string;
+  svg: string;
 }

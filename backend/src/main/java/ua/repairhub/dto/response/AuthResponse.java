@@ -18,4 +18,9 @@ public class AuthResponse {
     private String username;
     private String fullName;
     private Role role;
+    @Builder.Default
+    private Boolean requiresTwoFactor = false;
+    @Builder.Default
+    private Boolean emailVerified = true;
+    private String message;
 }

@@ -1,4 +1,16 @@
-import type { Order, SparePart, CreateOrderPayload, OrderStatus, AuthUser, ClientRecord, StaffMember } from '../types';
+import type { 
+  Order, 
+  SparePart, 
+  CreateOrderPayload, 
+  OrderStatus, 
+  AuthUser, 
+  ClientRecord, 
+  StaffMember,
+  SecurityAuditLog,
+  MockEmail,
+  UserSecurityProfile,
+  CaptchaData
+} from '../types';
 
 const API_BASE_URL = typeof window !== 'undefined' && window.location.port === '3000'
   ? '/api/v1'
@@ -233,9 +245,10 @@ let mockClients: ClientRecord[] = [
 ];
 
 let mockStaff: StaffMember[] = [
-  { id: 1, username: 'admin_oleg', fullName: 'Олег Петренко', role: 'ROLE_ADMIN', phone: '+380671112233', isActive: true, createdAt: '2026-09-01' },
-  { id: 2, username: 'mgr_alina', fullName: 'Аліна Ковальчук', role: 'ROLE_MANAGER', phone: '+380502223344', isActive: true, createdAt: '2026-09-05' },
-  { id: 3, username: 'tech_taras', fullName: 'Тарас Бондаренко', role: 'ROLE_TECHNICIAN', phone: '+380633334455', isActive: true, createdAt: '2026-09-10' }
+  { id: 1, username: 'admin_oleg', fullName: 'Олег Петренко', role: 'ROLE_ADMIN', phone: '+380671112233', email: 'admin@repairhub.ua', emailVerified: true, isActive: true, createdAt: '2026-09-01' },
+  { id: 2, username: 'mgr_alina', fullName: 'Аліна Ковальчук', role: 'ROLE_MANAGER', phone: '+380502223344', email: 'manager@repairhub.ua', emailVerified: true, isActive: true, createdAt: '2026-09-05' },
+  { id: 3, username: 'tech_taras', fullName: 'Тарас Бондаренко', role: 'ROLE_TECHNICIAN', phone: '+380633334455', email: 'tech@repairhub.ua', emailVerified: true, isActive: true, createdAt: '2026-09-10' },
+  { id: 4, username: 'user_vlad', fullName: 'Владислав Яворський', role: 'ROLE_USER', phone: '+380991234567', email: 'vlad@repairhub.ua', emailVerified: true, isActive: true, createdAt: '2026-10-26' }
 ];
 
 export const api = {
@@ -248,18 +261,35 @@ export const api = {
       });
       if (res.ok) {
         const data = await res.json();
+        if (data.twoFactorRequired || data.requiresTwoFactor) {
+          return {
+            username: data.username || username,
+            fullName: data.fullName || '',
+            role: data.role || 'ROLE_USER',
+            token: '',
+            twoFactorRequired: true,
+            tempToken: data.tempToken
+          };
+        }
         authToken = data.token;
         const user: AuthUser = {
           username: data.username || username,
-          fullName: data.fullName || (username === 'admin_oleg' ? 'Олег Петренко' : username === 'mgr_alina' ? 'Аліна Ковальчук' : 'Тарас Бондаренко'),
-          role: data.role || (username.startsWith('admin') ? 'ROLE_ADMIN' : username.startsWith('mgr') ? 'ROLE_MANAGER' : 'ROLE_TECHNICIAN'),
-          token: data.token
+          fullName: data.fullName || username,
+          role: data.role || 'ROLE_USER',
+          token: data.token,
+          email: data.email,
+          emailVerified: data.emailVerified,
+          twoFactorEnabled: data.twoFactorEnabled
         };
         if (typeof window !== 'undefined') {
           localStorage.setItem('repairhub_token', data.token);
           localStorage.setItem('repairhub_user', JSON.stringify(user));
         }
         return user;
+      }
+      if (res.status === 423) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.message || 'Обліковий запис заблоковано через перевищення кількості невдалих спроб входу.');
       }
       const errData = await res.json().catch(() => null);
       throw new Error(errData?.message || "Невірне ім'я користувача або пароль");
@@ -270,7 +300,8 @@ export const api = {
       const validAccounts: Record<string, { pass: string; role: string; name: string }> = {
         'admin_oleg': { pass: 'admin123', role: 'ROLE_ADMIN', name: 'Олег Петренко' },
         'mgr_alina': { pass: 'manager123', role: 'ROLE_MANAGER', name: 'Аліна Ковальчук' },
-        'tech_taras': { pass: 'tech123', role: 'ROLE_TECHNICIAN', name: 'Тарас Бондаренко' }
+        'tech_taras': { pass: 'tech123', role: 'ROLE_TECHNICIAN', name: 'Тарас Бондаренко' },
+        'user_vlad': { pass: 'Vlad@2026!', role: 'ROLE_USER', name: 'Владислав Яворський' }
       };
       const found = validAccounts[username];
       if (found && found.pass === password) {
@@ -280,7 +311,9 @@ export const api = {
           username,
           fullName: found.name,
           role: found.role,
-          token: mockToken
+          token: mockToken,
+          email: `${username}@repairhub.ua`,
+          emailVerified: true
         };
         if (typeof window !== 'undefined') {
           localStorage.setItem('repairhub_token', mockToken);
@@ -313,6 +346,234 @@ export const api = {
     return null;
   },
 
+  async getCaptcha(): Promise<CaptchaData> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/captcha`);
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          token: data.captchaToken || data.token,
+          svg: data.captchaSvg || data.svg
+        };
+      }
+    } catch {
+    }
+    return {
+      token: 'mock-token-' + Date.now(),
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="50" viewBox="0 0 160 50"><rect width="100%" height="100%" fill="#0f172a"/><text x="35" y="34" font-family="monospace" font-size="28" font-weight="bold" fill="#38bdf8" letter-spacing="4">8K4M</text></svg>'
+    };
+  },
+
+  async register(payload: { username: string; password: string; fullName: string; email?: string; phone?: string; role?: string; captchaToken?: string; captchaAnswer?: string }): Promise<AuthUser> {
+    const res = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      const data = await res.json();
+      authToken = data.token;
+      const user: AuthUser = {
+        username: data.username,
+        fullName: data.fullName,
+        role: data.role,
+        token: data.token,
+        email: data.email,
+        emailVerified: data.emailVerified,
+        twoFactorEnabled: data.twoFactorEnabled
+      };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('repairhub_token', data.token);
+        localStorage.setItem('repairhub_user', JSON.stringify(user));
+      }
+      return user;
+    }
+    const errData = await res.json().catch(() => null);
+    const msg = errData?.message || (errData?.validationErrors ? Object.values(errData.validationErrors).join(', ') : 'Помилка реєстрації');
+    throw new Error(msg);
+  },
+
+  async activateAccount(token: string): Promise<string> {
+    const res = await fetch(`${API_BASE_URL}/auth/activate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.message || 'Обліковий запис успішно активовано';
+    }
+    const errData = await res.json().catch(() => null);
+    throw new Error(errData?.message || 'Невірний або прострочений токен активації');
+  },
+
+  async forgotPassword(email: string): Promise<string> {
+    const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.message || 'Інструкції для відновлення пароля надіслано на email';
+    }
+    const errData = await res.json().catch(() => null);
+    throw new Error(errData?.message || 'Помилка надсилання запиту');
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<string> {
+    const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, newPassword })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return data.message || 'Пароль успішно змінено';
+    }
+    const errData = await res.json().catch(() => null);
+    throw new Error(errData?.message || 'Невірний або прострочений токен відновлення');
+  },
+
+  async verify2FA(username: string, code: string, tempToken: string): Promise<AuthUser> {
+    const res = await fetch(`${API_BASE_URL}/auth/2fa/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, code, tempToken })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      authToken = data.token;
+      const user: AuthUser = {
+        username: data.username,
+        fullName: data.fullName,
+        role: data.role,
+        token: data.token,
+        email: data.email,
+        emailVerified: data.emailVerified,
+        twoFactorEnabled: data.twoFactorEnabled
+      };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('repairhub_token', data.token);
+        localStorage.setItem('repairhub_user', JSON.stringify(user));
+      }
+      return user;
+    }
+    const errData = await res.json().catch(() => null);
+    throw new Error(errData?.message || 'Невірний код 2FA');
+  },
+
+  async loginOAuth(provider: string, email: string, name: string): Promise<AuthUser> {
+    const res = await fetch(`${API_BASE_URL}/auth/oauth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, email, fullName: name, externalId: `${provider}_${Date.now()}` })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      authToken = data.token;
+      const user: AuthUser = {
+        username: data.username,
+        fullName: data.fullName,
+        role: data.role,
+        token: data.token,
+        email: data.email,
+        emailVerified: data.emailVerified,
+        twoFactorEnabled: data.twoFactorEnabled
+      };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('repairhub_token', data.token);
+        localStorage.setItem('repairhub_user', JSON.stringify(user));
+      }
+      return user;
+    }
+    const errData = await res.json().catch(() => null);
+    throw new Error(errData?.message || 'Помилка OAuth входу');
+  },
+
+  async getMockEmails(): Promise<MockEmail[]> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/auth/emails`);
+      if (res.ok) {
+        const data = await res.json();
+        return data.map((e: any) => ({
+          id: e.id,
+          recipient: e.toEmail || e.recipient,
+          subject: e.subject,
+          body: e.body,
+          sentAt: e.createdAt || e.sentAt,
+          type: e.type,
+          token: e.token,
+          actionUrl: e.actionUrl
+        }));
+      }
+    } catch {
+    }
+    return [];
+  },
+
+  async getSecurityAuditLogs(): Promise<SecurityAuditLog[]> {
+    const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+    const res = await fetch(`${API_BASE_URL}/security/audit-logs`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    return [];
+  },
+
+  async lockUser(id: number): Promise<void> {
+    const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+    await fetch(`${API_BASE_URL}/security/users/${id}/lock`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+  },
+
+  async unlockUser(id: number): Promise<void> {
+    const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+    await fetch(`${API_BASE_URL}/security/users/${id}/unlock`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+  },
+
+  async getUserProfile(): Promise<UserSecurityProfile> {
+    const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+    const res = await fetch(`${API_BASE_URL}/profile`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    throw new Error('Помилка завантаження профілю');
+  },
+
+  async toggleTwoFactor(enabled: boolean): Promise<UserSecurityProfile> {
+    const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+    const res = await fetch(`${API_BASE_URL}/profile/2fa/toggle`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ enabled })
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    throw new Error('Помилка зміни статусу 2FA');
+  },
+
   async getOrders(): Promise<Order[]> {
     try {
       const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
@@ -338,7 +599,7 @@ export const api = {
       const res = await fetch(`${API_BASE_URL}/tracking/${encodeURIComponent(q)}`);
       if (res.ok) {
         const data = await res.json();
-        return [mapBackendOrderToFrontend(data)];
+        return Array.isArray(data) ? data.map(mapBackendOrderToFrontend) : [mapBackendOrderToFrontend(data)];
       }
     } catch {
     }
@@ -578,6 +839,11 @@ export const api = {
           fullName: u.fullName,
           role: u.role,
           phone: u.phone,
+          email: u.email,
+          emailVerified: u.emailVerified,
+          isLocked: u.isLocked,
+          failedLoginAttempts: u.failedLoginAttempts,
+          twoFactorEnabled: u.twoFactorEnabled,
           isActive: u.isActive,
           createdAt: u.createdAt
         }));

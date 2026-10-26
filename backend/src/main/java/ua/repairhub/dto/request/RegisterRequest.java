@@ -1,7 +1,6 @@
 package ua.repairhub.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,14 +19,20 @@ public class RegisterRequest {
     private String username;
 
     @NotBlank(message = "Пароль не може бути порожнім")
-    @Size(min = 6, message = "Пароль повинен містити не менше 6 символів")
+    @Size(min = 8, message = "Пароль повинен містити не менше 8 символів")
     private String password;
 
     @NotBlank(message = "ПІБ є обов'язковим")
     private String fullName;
 
-    @NotNull(message = "Роль користувача є обов'язковою")
-    private Role role;
+    private String email;
 
     private String phone;
+
+    @Builder.Default
+    private Role role = Role.ROLE_USER;
+
+    private String captchaToken;
+
+    private String captchaAnswer;
 }

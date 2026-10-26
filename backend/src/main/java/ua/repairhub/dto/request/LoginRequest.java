@@ -17,4 +17,6 @@ public class LoginRequest {
 
     @NotBlank(message = "Пароль є обов'язковим")
     private String password;
+
+    private String twoFactorCode;
 }

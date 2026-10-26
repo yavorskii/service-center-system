@@ -1,10 +1,4 @@
--- ========================================================
--- ІНФОРМАЦІЙНА СИСТЕМА УПРАВЛІННЯ СЕРВІСНИМ ЦЕНТРОМ
--- Варіант № 19: DDL Скрипт створення бази даних
--- СУБД: PostgreSQL 16
--- ========================================================
-
--- Видалення таблиць за необхідності (каскадно)
+DROP TABLE IF EXISTS login_audit_logs CASCADE;
 DROP TABLE IF EXISTS payments CASCADE;
 DROP TABLE IF EXISTS order_parts CASCADE;
 DROP TABLE IF EXISTS order_services CASCADE;
@@ -15,19 +9,38 @@ DROP TABLE IF EXISTS devices CASCADE;
 DROP TABLE IF EXISTS clients CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
--- 1. Таблиця користувачів системи (персонал: адміністратори, менеджери, майстри)
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(100) NOT NULL,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_TECHNICIAN')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_TECHNICIAN', 'ROLE_USER')),
     phone VARCHAR(20),
+    email VARCHAR(100) UNIQUE,
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+    activation_token VARCHAR(255),
+    activation_expires_at TIMESTAMP WITH TIME ZONE,
+    password_reset_token VARCHAR(255),
+    password_reset_expires_at TIMESTAMP WITH TIME ZONE,
+    two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    two_factor_secret VARCHAR(100),
+    failed_login_attempts INT NOT NULL DEFAULT 0,
+    locked_until TIMESTAMP WITH TIME ZONE,
+    is_locked BOOLEAN NOT NULL DEFAULT FALSE,
+    auth_provider VARCHAR(30) NOT NULL DEFAULT 'LOCAL',
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Таблиця клієнтів сервісного центру
+CREATE TABLE login_audit_logs (
+    id BIGSERIAL PRIMARY KEY,
+    username VARCHAR(100) NOT NULL,
+    ip_address VARCHAR(50) NOT NULL,
+    attempt_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(35) NOT NULL,
+    details VARCHAR(255)
+);
+
 CREATE TABLE clients (
     id BIGSERIAL PRIMARY KEY,
     full_name VARCHAR(100) NOT NULL,
@@ -38,25 +51,23 @@ CREATE TABLE clients (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. Таблиця пристроїв (техніка, що здається на ремонт)
 CREATE TABLE devices (
     id BIGSERIAL PRIMARY KEY,
     client_id BIGINT NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-    device_type VARCHAR(50) NOT NULL, -- Ноутбук, Смартфон, Планшет тощо
+    device_type VARCHAR(50) NOT NULL,
     brand VARCHAR(50) NOT NULL,
     model VARCHAR(100) NOT NULL,
     serial_number VARCHAR(100),
     imei VARCHAR(20),
-    appearance_notes TEXT, -- подряпини, тріщини тощо
-    specs_json JSONB,      -- гнучкі характеристики (RAM, SSD, колір)
+    appearance_notes TEXT,
+    specs_json JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 4. Таблиця замовлень на ремонт
 CREATE TABLE orders (
     id BIGSERIAL PRIMARY KEY,
-    order_number VARCHAR(30) NOT NULL UNIQUE, -- Наприклад: 'SRV-2026-0001'
-    tracking_code VARCHAR(32) NOT NULL UNIQUE, -- Для публічного онлайн-трекінгу
+    order_number VARCHAR(30) NOT NULL UNIQUE,
+    tracking_code VARCHAR(32) NOT NULL UNIQUE,
     client_id BIGINT NOT NULL REFERENCES clients(id) ON DELETE RESTRICT,
     device_id BIGINT NOT NULL REFERENCES devices(id) ON DELETE RESTRICT,
     technician_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
@@ -74,7 +85,6 @@ CREATE TABLE orders (
     completed_at TIMESTAMP WITH TIME ZONE
 );
 
--- 5. Довідник послуг сервісного центру
 CREATE TABLE services (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
@@ -82,7 +92,6 @@ CREATE TABLE services (
     standard_price NUMERIC(10, 2) NOT NULL CHECK (standard_price >= 0)
 );
 
--- 6. Перелік виконаних робіт/послуг у замовленні
 CREATE TABLE order_services (
     id BIGSERIAL PRIMARY KEY,
     order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -93,7 +102,6 @@ CREATE TABLE order_services (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 7. Складський облік запчастин
 CREATE TABLE spare_parts (
     id BIGSERIAL PRIMARY KEY,
     sku VARCHAR(50) NOT NULL UNIQUE,
@@ -105,7 +113,6 @@ CREATE TABLE spare_parts (
     min_stock_limit INT NOT NULL DEFAULT 2
 );
 
--- 8. Списані запчастини під конкретне замовлення
 CREATE TABLE order_parts (
     id BIGSERIAL PRIMARY KEY,
     order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -115,7 +122,6 @@ CREATE TABLE order_parts (
     added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 9. Фіксація платежів за замовленням
 CREATE TABLE payments (
     id BIGSERIAL PRIMARY KEY,
     order_id BIGINT NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
@@ -125,9 +131,11 @@ CREATE TABLE payments (
     paid_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Індекси для оптимізації типових запитів
 CREATE INDEX idx_orders_tracking_code ON orders(tracking_code);
 CREATE INDEX idx_orders_status ON orders(status);
 CREATE INDEX idx_orders_client_id ON orders(client_id);
 CREATE INDEX idx_clients_phone ON clients(phone);
 CREATE INDEX idx_spare_parts_sku ON spare_parts(sku);
+CREATE INDEX idx_login_audit_attempt_time ON login_audit_logs(attempt_time);
+CREATE INDEX idx_users_activation_token ON users(activation_token);
+CREATE INDEX idx_users_password_reset_token ON users(password_reset_token);
