@@ -21,7 +21,7 @@ spring:
       connection-timeout: 20000
 
   jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    open-in-view: false
     hibernate:
       ddl-auto: update
     show-sql: false
@@ -33,14 +33,11 @@ spring:
         order_inserts: true
         order_updates: true
 
-# Security & JWT Configuration
 app:
   jwt:
-    # 256-bit secret key in base64: RepairHubSecretKeyForServiceCenterManagementSystem2026SecureKey!
     secret: U2VydmljZUNlbnRlclN5c3RlbVJlcGFpckh1YjIwMjZKV1RTZWNyZXRLZXlSZWNvbW1lbmRlZERlZXBNaW5kQWd5
-    expiration-ms: 86400000 # 24 hours
+    expiration-ms: 86400000
 
-# Swagger / OpenAPI
 springdoc:
   api-docs:
     path: /v3/api-docs

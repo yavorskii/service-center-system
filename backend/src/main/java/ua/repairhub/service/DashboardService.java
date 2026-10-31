@@ -27,9 +27,7 @@ public class DashboardService {
         long completed = orderRepository.countByStatus(OrderStatus.COMPLETED);
         BigDecimal totalRevenue = orderRepository.calculateTotalRevenue();
 
-        long lowStockCount = sparePartRepository.findAll().stream()
-                .filter(p -> p.getStockQuantity() <= p.getMinStockLimit())
-                .count();
+        long lowStockCount = sparePartRepository.countLowStockParts();
 
         return DashboardStatsResponse.builder()
                 .totalOrders(totalOrders)

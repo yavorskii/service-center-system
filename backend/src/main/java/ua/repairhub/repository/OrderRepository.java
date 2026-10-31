@@ -16,7 +16,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     Optional<Order> findByOrderNumber(String orderNumber);
 
-    Optional<Order> findByTrackingCode(String trackingCode);
+    @Query("SELECT o FROM Order o " +
+           "JOIN FETCH o.client " +
+           "JOIN FETCH o.device " +
+           "LEFT JOIN FETCH o.technician " +
+           "WHERE o.trackingCode = :trackingCode")
+    Optional<Order> findByTrackingCode(@Param("trackingCode") String trackingCode);
 
     List<Order> findByStatus(OrderStatus status);
 
@@ -25,6 +30,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Optional<Order> findTopByOrderByIdDesc();
 
     @Query("SELECT o FROM Order o " +
+           "JOIN FETCH o.client " +
+           "JOIN FETCH o.device " +
+           "LEFT JOIN FETCH o.technician " +
            "WHERE (:status IS NULL OR o.status = :status) " +
            "AND (:search IS NULL OR :search = '' OR " +
            "LOWER(o.orderNumber) LIKE LOWER(CONCAT('%', :search, '%')) OR " +

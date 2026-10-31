@@ -1,0 +1,80 @@
+=== SWAGGER: КРОКИ ТА ДАНІ ДЛЯ ВСТАВКИ ===
+
+1. Авторизація (Лаба 10 - JWT)
+- Ендпоінт: POST /api/v1/auth/login
+- Request Body:
+{"username":"admin_oleg","password":"admin123"}
+- Дія: Скопіювати значення "token" з відповіді -> кнопка Authorize вгорі -> вставити токен.
+- Коментар: Генерація JWT токена без збереження стану на сервері (Stateless).
+
+2. Отримання замовлень (Лаба 8 - REST API & DTO)
+- Ендпоінт: GET /api/v1/orders
+- Параметри: search (пустий), status (--)
+- Дія: Натиснути Execute.
+- Коментар: Повертає список замовлень через типізований OrderResponse DTO.
+
+3. Фільтрація (Лаба 9 - Spring Data JPA)
+- Ендпоінт: GET /api/v1/orders
+- Параметр: search = Apple
+- Дія: Натиснути Execute.
+- Коментар: Пошук по сутностях через ILIKE запит у репозиторії.
+
+4. Публічний доступ (Лаба 10 - Security Rules)
+- Ендпоінт: GET /api/v1/tracking/{trackingCode}
+- Параметр: trackingCode = TRK-B2C44E
+- Дія: Натиснути Execute без авторизації.
+- Коментар: Доступний для анонімних клієнтів без передачі Bearer токена.
+
+5. Зміна статусу (Лаба 8 - Життєвий цикл)
+- Ендпоінт: PATCH /api/v1/orders/{id}/status
+- Параметр: id = 3
+- Request Body:
+{"status":"IN_PROGRESS"}
+- Коментар: Оновлення стану замовлення через Enum OrderStatus.
+
+6. Списання зі складу (Лаба 9 - Транзакції @Transactional)
+- Ендпоінт: POST /api/v1/orders/{id}/parts
+- Параметр: id = 3
+- Request Body:
+{"sparePartId":1,"quantity":1}
+- Коментар: Транзакційне списання залишку та перерахунок загальної вартості замовлення.
+
+7. Перевірка валідації помилок (Лаба 9 - Validation)
+- Ендпоінт: POST /api/v1/orders
+- Request Body:
+{"clientName":""}
+- Коментар: Повертає 400 Bad Request від GlobalExceptionHandler при спрацюванні @Valid.
+
+8. Перевірка RBAC захисту (Лаба 10 - Ролі)
+- Ендпоінт: DELETE /api/v1/orders/{id}
+- Параметр: id = 5
+- Коментар: Захищений метод з @PreAuthorize("hasRole('ADMIN')").
+
+
+=== ТЕСТУВАННЯ ТА ДЕПЛОЙ (ЛАБА 11) ===
+
+1. Запуск усіх тестів і збірок:
+./test-all.sh
+- Коментар: Запускає 10 тестів JUnit, білдить фронтенд та валідує docker-compose.
+
+2. Запуск суто тестів бекенду:
+mvn clean test -f backend/pom.xml
+- Коментар: Виконує 10 тестів (3 AuthController, 3 OrderController, 4 OrderService).
+
+3. Статус запущених контейнерів:
+docker compose ps
+- Коментар: Показує роботу трьох сервісів (Postgres, Backend, Frontend).
+
+4. Перевірка Healthcheck бази даних:
+docker inspect --format='{{json .State.Health.Status}}' repairhub-postgres
+- Коментар: Повертає "healthy", підтверджуючи готовність БД приймати з'єднання.
+
+5. Онлайн логи бекенду:
+docker compose logs -f backend
+- Коментар: Виводить живий лог запитів Spring Boot.
+
+6. Dockerfile (Multi-stage):
+- Коментар: Збірка виконується в образі Maven, а рантайм на легкому JRE 21 Alpine від користувача appuser.
+
+7. CI/CD (.github/workflows/ci.yml):
+- Коментар: GitHub Actions при кожному пуші піднімає PostgreSQL, накатує схему, ганяє тести та збирає артефакти.

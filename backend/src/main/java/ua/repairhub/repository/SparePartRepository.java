@@ -25,4 +25,7 @@ public interface SparePartRepository extends JpaRepository<SparePart, Long> {
            "LOWER(sp.category) LIKE LOWER(CONCAT('%', :query, '%'))) " +
            "ORDER BY sp.name ASC")
     List<SparePart> searchSpareParts(@Param("query") String query);
+
+    @Query("SELECT COUNT(sp) FROM SparePart sp WHERE sp.stockQuantity <= sp.minStockLimit")
+    long countLowStockParts();
 }
