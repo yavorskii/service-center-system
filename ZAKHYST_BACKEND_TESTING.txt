@@ -21,7 +21,7 @@
 
 4. Публічний доступ (Лаба 10 - Security Rules)
 - Ендпоінт: GET /api/v1/tracking/{trackingCode}
-- Параметр: trackingCode = TRK-B2C44E
+- Параметр: trackingCode = TRK-A8F91B
 - Дія: Натиснути Execute без авторизації.
 - Коментар: Доступний для анонімних клієнтів без передачі Bearer токена.
 
