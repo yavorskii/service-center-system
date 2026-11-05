@@ -57,6 +57,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
     setGoogleLoading(true);
     setErrorMessage('');
     try {
+      localStorage.removeItem('repairhub_google_mode');
       const url = await api.getGoogleAuthUrl();
       window.location.href = url;
     } catch (err: any) {

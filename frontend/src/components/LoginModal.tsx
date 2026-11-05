@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X, Lock, AlertCircle, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { X, Lock, AlertCircle, ArrowRight, Eye, EyeOff, RefreshCw, ShieldAlert } from 'lucide-react';
 import { api } from '../services/api';
-import type { AuthUser } from '../types';
+import type { AuthUser, CaptchaData } from '../types';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (user: AuthUser) => void;
-  onRequireTwoFactor: (username: string, tempToken: string) => void;
+  onRequireTwoFactor: (username: string, tempToken: string, method?: string) => void;
   onOpenForgotPassword: () => void;
   onOpenRegister: () => void;
+  onOpenSupport: (emailHint?: string) => void;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
@@ -18,19 +19,35 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onSuccess,
   onRequireTwoFactor,
   onOpenForgotPassword,
-  onOpenRegister
+  onOpenRegister,
+  onOpenSupport
 }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [captchaData, setCaptchaData] = useState<CaptchaData | null>(null);
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [loadingCaptcha, setLoadingCaptcha] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const loadCaptcha = async () => {
+    setLoadingCaptcha(true);
+    try {
+      const data = await api.getCaptcha();
+      setCaptchaData(data);
+      setCaptchaAnswer('');
+    } finally {
+      setLoadingCaptcha(false);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
       setError(null);
       setGoogleLoading(false);
+      loadCaptcha();
     }
   }, [isOpen]);
 
@@ -45,18 +62,23 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const user = await api.login(username.trim(), password);
+      const user = await api.login(username.trim(), password, {
+        captchaToken: captchaData?.token || '',
+        captchaAnswer: captchaAnswer.trim()
+      });
       if (user.twoFactorRequired) {
         onClose();
-        onRequireTwoFactor(user.username, user.tempToken || '');
+        onRequireTwoFactor(user.username, user.tempToken || '', user.twoFactorMethod);
         return;
       }
       setUsername('');
       setPassword('');
+      setCaptchaAnswer('');
       onSuccess(user);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Помилка автентифікації');
+      loadCaptcha();
     } finally {
       setLoading(false);
     }
@@ -66,6 +88,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setGoogleLoading(true);
     setError(null);
     try {
+      localStorage.removeItem('repairhub_google_mode');
       const url = await api.getGoogleAuthUrl();
       window.location.href = url;
     } catch (err: any) {
@@ -73,6 +96,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       setGoogleLoading(false);
     }
   };
+
+  const isLockedError = Boolean(error && (error.includes('заблоковано') || error.includes('обмежено')));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
@@ -84,7 +109,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-bold text-white">Вхід до облікового запису</h3>
-              <p className="text-[11px] text-slate-400">Особистий кабінет клієнта та панель RepairHub</p>
+              <p className="text-[11px] text-slate-400">Захищена автентифікація сервісного центру RepairHub</p>
             </div>
           </div>
           <button
@@ -95,11 +120,27 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleLogin} className="p-6 space-y-4">
+        <form onSubmit={handleLogin} className="p-6 space-y-3.5">
           {error && (
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5">
-              <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
-              <div className="flex-1 leading-relaxed">{error}</div>
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs space-y-2">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+                <div className="flex-1 leading-relaxed">{error}</div>
+              </div>
+              {isLockedError && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const hint = username.includes('@') ? username.trim() : '';
+                    onClose();
+                    onOpenSupport(hint);
+                  }}
+                  className="w-full mt-1 py-1.5 px-3 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-200 font-semibold flex items-center justify-center gap-1.5 transition"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>Повідомити у службу безпеки / Розблокувати</span>
+                </button>
+              )}
             </div>
           )}
 
@@ -118,7 +159,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             <span>{googleLoading ? 'Перехід до Google...' : 'Увійти через Google'}</span>
           </button>
 
-          <div className="relative my-2">
+          <div className="relative my-1">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-800" />
             </div>
@@ -128,7 +169,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+            <label className="block text-xs font-medium text-slate-300 mb-1">
               Логін або Email
             </label>
             <input
@@ -146,7 +187,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-medium text-slate-300">
                 Пароль
               </label>
@@ -184,17 +225,45 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           </div>
 
+          <div className="p-2.5 bg-[#0B0F19] border border-slate-800 rounded-xl space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-slate-300">Підтвердження CAPTCHA *</span>
+              <button
+                type="button"
+                onClick={loadCaptcha}
+                disabled={loadingCaptcha}
+                className="inline-flex items-center gap-1 text-[11px] text-sky-400 hover:text-sky-300 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3 h-3 ${loadingCaptcha ? 'animate-spin' : ''}`} />
+                <span>Оновити</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <div
+                className="bg-slate-950 p-1 rounded-lg border border-slate-800 flex items-center justify-center shrink-0 min-w-[150px] h-[48px]"
+                dangerouslySetInnerHTML={{ __html: captchaData?.svg || '<span class="text-[11px] text-slate-500">...</span>' }}
+              />
+              <input
+                type="text"
+                value={captchaAnswer}
+                onChange={e => setCaptchaAnswer(e.target.value)}
+                placeholder="Код із картинки"
+                maxLength={6}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-center font-mono tracking-widest text-white uppercase focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
           <button
             type="submit"
             disabled={loading || googleLoading}
-            className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 mt-2"
+            className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
           >
             <span>{loading ? 'Перевірка даних...' : 'Увійти'}</span>
             <ArrowRight className="h-3.5 w-3.5" />
           </button>
 
-          <div className="pt-2 text-center text-xs text-slate-400">
-            <span>Немає облікового запису? </span>
+          <div className="pt-1 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/80">
             <button
               type="button"
               onClick={() => {
@@ -203,7 +272,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               }}
               className="text-indigo-400 hover:text-indigo-300 font-semibold transition"
             >
-              Зареєструватися
+              Створити акаунт
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const hint = username.includes('@') ? username.trim() : '';
+                onClose();
+                onOpenSupport(hint);
+              }}
+              className="text-slate-400 hover:text-slate-200 transition"
+            >
+              Служба підтримки
             </button>
           </div>
         </form>

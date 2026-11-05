@@ -21,7 +21,8 @@ import {
   User,
   LogOut,
   KeyRound,
-  ClipboardList
+  ClipboardList,
+  LifeBuoy
 } from 'lucide-react';
 import type { Order, OrderStatus, AuthUser } from '../types';
 import { api } from '../services/api';
@@ -33,6 +34,7 @@ interface ClientPortalProps {
   onOpenCreateModal: () => void;
   onOpenRegister?: () => void;
   onOpenProfile?: () => void;
+  onOpenSupport?: () => void;
   onLogout?: () => void;
 }
 
@@ -52,6 +54,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
   onOpenCreateModal,
   onOpenRegister,
   onOpenProfile,
+  onOpenSupport,
   onLogout
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -726,14 +729,20 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
             <span>© 2026 Всі права захищено</span>
           </div>
 
-          {!currentUser && (
-            <div className="flex items-center gap-4">
-              <button onClick={onOpenLogin} className="text-slate-400 hover:text-white flex items-center gap-1">
+          <div className="flex items-center gap-4">
+            {onOpenSupport && (
+              <button onClick={onOpenSupport} className="text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors">
+                <LifeBuoy className="h-3 w-3 text-blue-400" />
+                <span>Служба підтримки</span>
+              </button>
+            )}
+            {!currentUser && (
+              <button onClick={onOpenLogin} className="text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
                 <Lock className="h-3 w-3 text-blue-400" />
                 <span>Вхід для персоналу</span>
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </footer>
     </div>

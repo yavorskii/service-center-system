@@ -19,8 +19,10 @@ export interface AuthUser {
   email?: string;
   emailVerified?: boolean;
   twoFactorEnabled?: boolean;
+  twoFactorMethod?: string;
   twoFactorRequired?: boolean;
   tempToken?: string;
+  authProvider?: string;
 }
 
 export interface Client {
@@ -50,8 +52,14 @@ export interface StaffMember {
   email?: string;
   emailVerified?: boolean;
   isLocked?: boolean;
+  lockedUntil?: string;
   failedLoginAttempts?: number;
   twoFactorEnabled?: boolean;
+  twoFactorMethod?: string;
+  authProvider?: string;
+  googleEmail?: string;
+  lastLoginIp?: string;
+  lastLoginAt?: string;
   isActive: boolean;
   createdAt?: string;
 }
@@ -139,7 +147,10 @@ export interface CreateOrderPayload {
 export interface SecurityAuditLog {
   id: number;
   username: string;
+  actorUsername?: string;
+  userIpAddress?: string;
   ipAddress: string;
+  userAgent?: string;
   attemptTime: string;
   status: string;
   details: string;
@@ -165,9 +176,62 @@ export interface UserSecurityProfile {
   phone?: string;
   emailVerified: boolean;
   twoFactorEnabled: boolean;
+  twoFactorMethod?: string;
   failedLoginAttempts: number;
   isLocked: boolean;
   authProvider: string;
+  googleConnected?: boolean;
+  googleEmail?: string;
+  lastLoginIp?: string;
+  lastLoginAt?: string;
+  createdAt?: string;
+  updatedToken?: string;
+}
+
+export interface UserSessionItem {
+  id: number;
+  ipAddress: string;
+  deviceInfo: string;
+  createdAt: string;
+  lastActiveAt: string;
+  current: boolean;
+  primary: boolean;
+  canTerminate: boolean;
+}
+
+export interface TotpSetupData {
+  secret: string;
+  otpAuthUrl: string;
+  qrCodeSvg: string;
+}
+
+export interface SentEmailLogItem {
+  id: number;
+  recipientEmail: string;
+  username?: string;
+  subject: string;
+  emailType: string;
+  deliveryStatus: string;
+  sentAt: string;
+}
+
+export interface SupportTicketItem {
+  id: number;
+  email: string;
+  username?: string;
+  userId?: number;
+  category: string;
+  subject: string;
+  description: string;
+  ipAddress?: string;
+  status: string;
+  adminNote?: string;
+  adminReply?: string;
+  repliedBy?: string;
+  repliedAt?: string;
+  createdAt: string;
+  linkedUser?: StaffMember;
+  recentEvents?: SecurityAuditLog[];
 }
 
 export interface CaptchaData {

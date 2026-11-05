@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Lock, Key, Check, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { X, Lock, Key, Check, AlertCircle, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { api } from '../services/api';
+import type { CaptchaData } from '../types';
 
 interface ResetPasswordModalProps {
   isOpen: boolean;
@@ -19,9 +20,23 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [captchaData, setCaptchaData] = useState<CaptchaData | null>(null);
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [loadingCaptcha, setLoadingCaptcha] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+
+  const loadCaptcha = async () => {
+    setLoadingCaptcha(true);
+    try {
+      const data = await api.getCaptcha();
+      setCaptchaData(data);
+      setCaptchaAnswer('');
+    } finally {
+      setLoadingCaptcha(false);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -30,6 +45,7 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
       setConfirmPassword('');
       setErrorMessage('');
       setSuccessMessage('');
+      loadCaptcha();
     }
   }, [isOpen, initialToken]);
 
@@ -61,14 +77,18 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
     setSuccessMessage('');
 
     try {
-      const msg = await api.resetPassword(token.trim(), newPassword);
+      const msg = await api.resetPassword(token.trim(), newPassword, {
+        captchaToken: captchaData?.token || '',
+        captchaAnswer: captchaAnswer.trim()
+      });
       setSuccessMessage(msg);
       setTimeout(() => {
         onClose();
         onSwitchToLogin();
-      }, 1800);
+      }, 2200);
     } catch (err: any) {
       setErrorMessage(err.message || 'Помилка скидання пароля');
+      loadCaptcha();
     } finally {
       setIsSubmitting(false);
     }
@@ -78,7 +98,7 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 sm:p-8 text-slate-100">
+      <div className="relative w-full max-w-md max-h-[92vh] overflow-y-auto bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 sm:p-8 text-slate-100">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800"
@@ -86,19 +106,19 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-5">
           <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
             <Key className="w-6 h-6 text-white" />
           </div>
           <div>
             <h2 className="text-xl font-bold tracking-tight text-white">Новий пароль</h2>
-            <p className="text-xs text-slate-400">Встановіть новий надійний пароль для акаунта</p>
+            <p className="text-xs text-slate-400">Після зміни пароля попередні сеанси буде завершено</p>
           </div>
         </div>
 
         {errorMessage && (
-          <div className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-start gap-2.5">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400 mt-0.5" />
+          <div className="mb-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400 mt-0.5" />
             <span>{errorMessage}</span>
           </div>
         )}
@@ -108,15 +128,15 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
             <div className="w-14 h-14 bg-emerald-500/20 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto text-emerald-400">
               <Check className="w-7 h-7" />
             </div>
-            <h3 className="text-base font-bold text-white">Пароль успішно змінено!</h3>
-            <p className="text-xs text-slate-300">{successMessage}</p>
-            <p className="text-xs text-slate-400 pt-1">Відкриваємо форму входу...</p>
+            <h3 className="text-base font-bold text-white">Пароль оновлено!</h3>
+            <p className="text-xs text-emerald-300">{successMessage}</p>
+            <p className="text-xs text-slate-400 pt-1">Перехід до форми входу...</p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-3.5">
             {!initialToken && (
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                <label className="block text-xs font-medium text-slate-300 mb-1">
                   Токен відновлення *
                 </label>
                 <input
@@ -131,7 +151,7 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
             )}
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-xs font-medium text-slate-300 mb-1">
                 Новий пароль *
               </label>
               <div className="relative">
@@ -155,7 +175,7 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              <label className="block text-xs font-medium text-slate-300 mb-1">
                 Підтвердження нового пароля *
               </label>
               <div className="relative">
@@ -208,6 +228,35 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
                   <Check className={`w-3 h-3 ${isMatch ? 'opacity-100' : 'opacity-30'}`} />
                   <span>Співпадають</span>
                 </div>
+              </div>
+            </div>
+
+            <div className="p-2.5 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-slate-300">Підтвердження CAPTCHA *</span>
+                <button
+                  type="button"
+                  onClick={loadCaptcha}
+                  disabled={loadingCaptcha}
+                  className="inline-flex items-center gap-1 text-[11px] text-sky-400 hover:text-sky-300"
+                >
+                  <RefreshCw className={`w-3 h-3 ${loadingCaptcha ? 'animate-spin' : ''}`} />
+                  <span>Оновити</span>
+                </button>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="bg-slate-950 p-1 rounded-lg border border-slate-800 flex items-center justify-center shrink-0 min-w-[150px] h-[48px]"
+                  dangerouslySetInnerHTML={{ __html: captchaData?.svg || '' }}
+                />
+                <input
+                  type="text"
+                  value={captchaAnswer}
+                  onChange={e => setCaptchaAnswer(e.target.value)}
+                  placeholder="5 символів"
+                  maxLength={6}
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-center font-mono tracking-widest text-white uppercase focus:outline-none focus:border-emerald-500"
+                />
               </div>
             </div>
 

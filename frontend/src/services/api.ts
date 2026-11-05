@@ -10,6 +10,10 @@ import type {
   SecurityAuditLog,
   MockEmail,
   UserSecurityProfile,
+  UserSessionItem,
+  TotpSetupData,
+  SentEmailLogItem,
+  SupportTicketItem,
   CaptchaData
 } from '../types';
 
@@ -228,12 +232,26 @@ let mockStaff: StaffMember[] = [
 ];
 
 export const api = {
-  async login(username: string, password: string): Promise<AuthUser> {
+  async login(
+    username: string,
+    password: string,
+    captcha?: { captchaToken: string; captchaAnswer: string }
+  ): Promise<AuthUser> {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({
+          username,
+          password,
+          ...(captcha
+            ? {
+                captchaToken: captcha.captchaToken,
+                captchaAnswer: captcha.captchaAnswer,
+                requireCaptcha: true
+              }
+            : {})
+        })
       });
       if (res.ok) {
         const data = await res.json();
@@ -244,6 +262,7 @@ export const api = {
             role: data.role || 'ROLE_USER',
             token: '',
             twoFactorRequired: true,
+            twoFactorMethod: data.twoFactorMethod || 'EMAIL',
             tempToken: data.tempToken
           };
         }
@@ -255,7 +274,9 @@ export const api = {
           token: data.token,
           email: data.email,
           emailVerified: data.emailVerified,
-          twoFactorEnabled: data.twoFactorEnabled
+          twoFactorEnabled: data.twoFactorEnabled,
+          twoFactorMethod: data.twoFactorMethod,
+          authProvider: data.authProvider
         };
         if (typeof window !== 'undefined') {
           localStorage.setItem('repairhub_token', data.token);
@@ -273,35 +294,18 @@ export const api = {
       if (!isNetworkFailure(err)) {
         throw err;
       }
-      const validAccounts: Record<string, { pass: string; role: string; name: string }> = {
-        'admin_oleg': { pass: 'admin123', role: 'ROLE_ADMIN', name: 'Олег Петренко' },
-        'mgr_alina': { pass: 'manager123', role: 'ROLE_MANAGER', name: 'Аліна Ковальчук' },
-        'tech_taras': { pass: 'tech123', role: 'ROLE_TECHNICIAN', name: 'Тарас Бондаренко' },
-        'user_vlad': { pass: 'Vlad@2026!', role: 'ROLE_USER', name: 'Владислав Яворський' }
-      };
-      const found = validAccounts[username];
-      if (found && found.pass === password) {
-        const mockToken = 'mock-jwt-token-' + Date.now();
-        authToken = mockToken;
-        const user: AuthUser = {
-          username,
-          fullName: found.name,
-          role: found.role,
-          token: mockToken,
-          email: `${username}@repairhub.ua`,
-          emailVerified: true
-        };
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('repairhub_token', mockToken);
-          localStorage.setItem('repairhub_user', JSON.stringify(user));
-        }
-        return user;
-      }
-      throw new Error("Невірне ім'я користувача або пароль");
+      throw new Error('Сервер тимчасово недоступний');
     }
   },
 
   logout(): void {
+    const token = getToken();
+    if (token) {
+      fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).catch(() => {});
+    }
     authToken = null;
     if (typeof window !== 'undefined') {
       localStorage.removeItem('repairhub_token');
@@ -355,7 +359,9 @@ export const api = {
         token: data.token || '',
         email: data.email,
         emailVerified: data.emailVerified,
-        twoFactorEnabled: data.twoFactorEnabled
+        twoFactorEnabled: data.twoFactorEnabled,
+        twoFactorMethod: data.twoFactorMethod,
+        authProvider: data.authProvider
       };
       if (data.token) {
         authToken = data.token;
@@ -382,11 +388,11 @@ export const api = {
     throw new Error(await extractErrorMessage(res, 'Невірний або прострочений токен активації'));
   },
 
-  async forgotPassword(email: string): Promise<string> {
+  async forgotPassword(email: string, twoFactorCode?: string): Promise<string> {
     const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email })
+      body: JSON.stringify({ email, ...(twoFactorCode ? { twoFactorCode } : {}) })
     });
     if (res.ok) {
       const data = await res.json();
@@ -395,11 +401,25 @@ export const api = {
     throw new Error(await extractErrorMessage(res, 'Помилка надсилання запиту'));
   },
 
-  async resetPassword(token: string, newPassword: string): Promise<string> {
+  async resetPassword(
+    token: string,
+    newPassword: string,
+    captcha?: { captchaToken: string; captchaAnswer: string }
+  ): Promise<string> {
     const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, newPassword })
+      body: JSON.stringify({
+        token,
+        newPassword,
+        ...(captcha
+          ? {
+              captchaToken: captcha.captchaToken,
+              captchaAnswer: captcha.captchaAnswer,
+              requireCaptcha: true
+            }
+          : {})
+      })
     });
     if (res.ok) {
       const data = await res.json();
@@ -424,7 +444,9 @@ export const api = {
         token: data.token,
         email: data.email,
         emailVerified: data.emailVerified,
-        twoFactorEnabled: data.twoFactorEnabled
+        twoFactorEnabled: data.twoFactorEnabled,
+        twoFactorMethod: data.twoFactorMethod,
+        authProvider: data.authProvider
       };
       if (typeof window !== 'undefined') {
         localStorage.setItem('repairhub_token', data.token);
@@ -451,7 +473,9 @@ export const api = {
         token: data.token,
         email: data.email,
         emailVerified: data.emailVerified,
-        twoFactorEnabled: data.twoFactorEnabled
+        twoFactorEnabled: data.twoFactorEnabled,
+        twoFactorMethod: data.twoFactorMethod,
+        authProvider: data.authProvider
       };
       if (typeof window !== 'undefined') {
         localStorage.setItem('repairhub_token', data.token);
@@ -485,6 +509,18 @@ export const api = {
     });
     if (res.ok) {
       const data = await res.json();
+      if (data.twoFactorRequired || data.requiresTwoFactor) {
+        return {
+          username: data.username,
+          fullName: data.fullName || '',
+          role: data.role || 'ROLE_USER',
+          token: '',
+          email: data.email,
+          twoFactorRequired: true,
+          twoFactorMethod: data.twoFactorMethod || 'EMAIL',
+          tempToken: data.tempToken
+        };
+      }
       authToken = data.token;
       const user: AuthUser = {
         username: data.username,
@@ -493,7 +529,9 @@ export const api = {
         token: data.token,
         email: data.email,
         emailVerified: data.emailVerified,
-        twoFactorEnabled: data.twoFactorEnabled
+        twoFactorEnabled: data.twoFactorEnabled,
+        twoFactorMethod: data.twoFactorMethod,
+        authProvider: data.authProvider
       };
       if (typeof window !== 'undefined') {
         localStorage.setItem('repairhub_token', data.token);
@@ -502,6 +540,56 @@ export const api = {
       return user;
     }
     throw new Error(await extractErrorMessage(res, 'Помилка авторизації через Google'));
+  },
+
+  async linkGoogleCode(code: string): Promise<UserSecurityProfile> {
+    const token = getToken();
+    const redirectUri = typeof window !== 'undefined'
+      ? `${window.location.origin}/auth/google/callback`
+      : 'http://localhost:3000/auth/google/callback';
+    const res = await fetch(`${API_BASE_URL}/profile/google/link`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ code, redirectUri })
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    throw new Error(await extractErrorMessage(res, 'Не вдалося підключити Google-акаунт'));
+  },
+
+  async unlinkGoogle(): Promise<UserSecurityProfile> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/profile/google/unlink`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    throw new Error(await extractErrorMessage(res, "Не вдалося від'єднати Google-акаунт"));
+  },
+
+  async createSupportTicket(payload: {
+    email: string;
+    category: string;
+    subject: string;
+    description: string;
+  }): Promise<SupportTicketItem> {
+    const res = await fetch(`${API_BASE_URL}/auth/support`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    throw new Error(await extractErrorMessage(res, 'Не вдалося створити звернення'));
   },
 
   async getMockEmails(): Promise<MockEmail[]> {
@@ -538,6 +626,64 @@ export const api = {
     return [];
   },
 
+  async getSentEmailLogs(): Promise<SentEmailLogItem[]> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/security/email-logs`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    return [];
+  },
+
+  async getSecurityStats(): Promise<{ activeSessions: number }> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/security/stats`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    return { activeSessions: 0 };
+  },
+
+  async getSupportTickets(): Promise<SupportTicketItem[]> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/security/support-tickets`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    return [];
+  },
+
+  async updateSupportTicket(
+    id: number,
+    payload: { status?: string; adminNote?: string; replyMessage?: string }
+  ): Promise<SupportTicketItem> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/security/support-tickets/${id}`, {
+      method: 'PATCH',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    throw new Error(await extractErrorMessage(res, 'Не вдалося оновити звернення'));
+  },
+
   async lockUser(id: number): Promise<void> {
     const token = getToken();
     const res = await fetch(`${API_BASE_URL}/security/users/${id}/lock`, {
@@ -564,6 +710,21 @@ export const api = {
     }
   },
 
+  async deleteUserByAdmin(id: number, confirmIdentifier: string, confirmKeyword: string): Promise<void> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/security/users/${id}`, {
+      method: 'DELETE',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ confirmIdentifier, confirmKeyword })
+    });
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Не вдалося видалити акаунт'));
+    }
+  },
+
   async getUserProfile(): Promise<UserSecurityProfile> {
     const token = getToken();
     const res = await fetch(`${API_BASE_URL}/profile`, {
@@ -574,7 +735,38 @@ export const api = {
     if (res.ok) {
       return await res.json();
     }
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('SESSION_EXPIRED');
+    }
     throw new Error('Помилка завантаження профілю');
+  },
+
+  async updateProfileDetails(payload: {
+    fullName?: string;
+    phone?: string;
+    newUsername?: string;
+    currentPassword?: string;
+  }): Promise<UserSecurityProfile> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/profile/details`, {
+      method: 'PUT',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    if (res.ok) {
+      const data: UserSecurityProfile = await res.json();
+      if (data.updatedToken) {
+        authToken = data.updatedToken;
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('repairhub_token', data.updatedToken);
+        }
+      }
+      return data;
+    }
+    throw new Error(await extractErrorMessage(res, 'Не вдалося оновити профіль'));
   },
 
   async toggleTwoFactor(enabled: boolean): Promise<UserSecurityProfile> {
@@ -590,7 +782,93 @@ export const api = {
     if (res.ok) {
       return await res.json();
     }
-    throw new Error('Помилка зміни статусу 2FA');
+    throw new Error(await extractErrorMessage(res, 'Помилка зміни статусу 2FA'));
+  },
+
+  async setupTotp(): Promise<TotpSetupData> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/profile/2fa/totp/setup`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    throw new Error(await extractErrorMessage(res, 'Не вдалося згенерувати QR-код 2FA'));
+  },
+
+  async enableTotp(secret: string, code: string): Promise<UserSecurityProfile> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/profile/2fa/totp/enable`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ secret, code })
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    throw new Error(await extractErrorMessage(res, 'Невірний 6-значний код підтвердження'));
+  },
+
+  async getActiveSessions(): Promise<UserSessionItem[]> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/profile/sessions`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('SESSION_EXPIRED');
+    }
+    return [];
+  },
+
+  async terminateOtherSessions(): Promise<{ terminatedCount: number; message: string }> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/profile/sessions/terminate-others`, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    throw new Error(await extractErrorMessage(res, 'Не вдалося завершити інші сеанси'));
+  },
+
+  async terminateSession(id: number): Promise<void> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/profile/sessions/${id}`, {
+      method: 'DELETE',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Не вдалося завершити сеанс'));
+    }
+  },
+
+  async getPersonalEvents(): Promise<SecurityAuditLog[]> {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/profile/events`, {
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    return [];
   },
 
   async getOrders(): Promise<Order[]> {
@@ -1222,8 +1500,14 @@ export const api = {
           email: u.email,
           emailVerified: u.emailVerified,
           isLocked: u.isLocked,
+          lockedUntil: u.lockedUntil,
           failedLoginAttempts: u.failedLoginAttempts,
           twoFactorEnabled: u.twoFactorEnabled,
+          twoFactorMethod: u.twoFactorMethod,
+          authProvider: u.authProvider,
+          googleEmail: u.googleEmail,
+          lastLoginIp: u.lastLoginIp,
+          lastLoginAt: u.lastLoginAt,
           isActive: u.isActive,
           createdAt: u.createdAt
         }));

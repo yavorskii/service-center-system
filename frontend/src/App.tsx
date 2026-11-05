@@ -9,6 +9,7 @@ import { ResetPasswordModal } from './components/ResetPasswordModal';
 import { TwoFactorModal } from './components/TwoFactorModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { SecurityAuditView } from './components/SecurityAuditView';
+import { SupportTicketModal } from './components/SupportTicketModal';
 import { Navbar } from './components/Navbar';
 import { StatsCards } from './components/StatsCards';
 import { OrderCard, statusConfig } from './components/OrderCard';
@@ -29,8 +30,11 @@ export const App: React.FC = () => {
   const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
   const [resetPasswordToken, setResetPasswordToken] = useState('');
   const [isTwoFactorModalOpen, setIsTwoFactorModalOpen] = useState(false);
-  const [twoFactorData, setTwoFactorData] = useState<{ username: string; tempToken: string } | null>(null);
+  const [twoFactorData, setTwoFactorData] = useState<{ username: string; tempToken: string; method?: string } | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [supportEmailHint, setSupportEmailHint] = useState('');
+  const [forgotPasswordEmailHint, setForgotPasswordEmailHint] = useState('');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
@@ -77,10 +81,23 @@ export const App: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     const path = window.location.pathname;
 
+    if (path.includes('/support')) {
+      handledCallbackRef.current = true;
+      const emailParam = params.get('email') || '';
+      window.history.replaceState({}, '', '/');
+      setSupportEmailHint(emailParam);
+      setIsSupportModalOpen(true);
+      return;
+    }
+
     if (path.includes('/auth/google/callback')) {
       handledCallbackRef.current = true;
       const code = params.get('code');
       const oauthError = params.get('error');
+      const googleMode = typeof window !== 'undefined' ? localStorage.getItem('repairhub_google_mode') : null;
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('repairhub_google_mode');
+      }
       window.history.replaceState({}, '', '/');
 
       if (oauthError) {
@@ -89,16 +106,34 @@ export const App: React.FC = () => {
       }
       if (code) {
         setOauthProcessing(true);
-        api.exchangeGoogleCode(code)
-          .then(user => {
-            setCurrentUser(user);
-            showToast(`Ви успішно увійшли через Google як ${user.fullName}`);
-          })
-          .catch((err: any) => {
-            showToast(err?.message || 'Не вдалося завершити вхід через Google', true);
-            setIsLoginModalOpen(true);
-          })
-          .finally(() => setOauthProcessing(false));
+        if (googleMode === 'link' && currentUser) {
+          api.linkGoogleCode(code)
+            .then(profile => {
+              showToast(`Google-акаунт (${profile.googleEmail || profile.email}) успішно підключено!`);
+              setIsProfileModalOpen(true);
+            })
+            .catch((err: any) => {
+              showToast(err?.message || 'Не вдалося підключити Google-акаунт', true);
+              setIsProfileModalOpen(true);
+            })
+            .finally(() => setOauthProcessing(false));
+        } else {
+          api.exchangeGoogleCode(code)
+            .then(res => {
+              if (res.twoFactorRequired) {
+                handleRequireTwoFactor(res.username, res.tempToken || '', res.twoFactorMethod || 'EMAIL');
+                showToast('Вхід через Google: потрібне підтвердження 2FA');
+              } else {
+                setCurrentUser(res);
+                showToast(`Ви успішно увійшли через Google як ${res.fullName}`);
+              }
+            })
+            .catch((err: any) => {
+              showToast(err?.message || 'Не вдалося завершити вхід через Google', true);
+              setIsLoginModalOpen(true);
+            })
+            .finally(() => setOauthProcessing(false));
+        }
       }
       return;
     }
@@ -140,8 +175,8 @@ export const App: React.FC = () => {
     showToast('Ви вийшли з облікового запису');
   };
 
-  const handleRequireTwoFactor = (username: string, tempToken: string) => {
-    setTwoFactorData({ username, tempToken });
+  const handleRequireTwoFactor = (username: string, tempToken: string, method?: string) => {
+    setTwoFactorData({ username, tempToken, method });
     setIsTwoFactorModalOpen(true);
   };
 
@@ -257,6 +292,7 @@ export const App: React.FC = () => {
           onOpenLogin={() => setIsLoginModalOpen(true)}
           onOpenRegister={() => setIsRegisterModalOpen(true)}
           onOpenProfile={() => setIsProfileModalOpen(true)}
+          onOpenSupport={() => setIsSupportModalOpen(true)}
           onLogout={handleLogout}
           onOpenCreateModal={() => setIsCreateModalOpen(true)}
         />
@@ -284,7 +320,7 @@ export const App: React.FC = () => {
 
             {isAdmin && activeTab === 'staff' && <StaffView />}
 
-            {isAdmin && activeTab === 'security' && <SecurityAuditView />}
+            {isAdmin && activeTab === 'security' && <SecurityAuditView currentUser={currentUser} />}
 
             {activeTab === 'orders' && (
               <>
@@ -432,6 +468,11 @@ export const App: React.FC = () => {
         onRequireTwoFactor={handleRequireTwoFactor}
         onOpenForgotPassword={() => setIsForgotPasswordModalOpen(true)}
         onOpenRegister={() => setIsRegisterModalOpen(true)}
+        onOpenSupport={(emailHint) => {
+          setIsLoginModalOpen(false);
+          setSupportEmailHint(emailHint || '');
+          setIsSupportModalOpen(true);
+        }}
       />
 
       <RegisterModal
@@ -449,6 +490,7 @@ export const App: React.FC = () => {
           isOpen={isTwoFactorModalOpen}
           username={twoFactorData.username}
           tempToken={twoFactorData.tempToken}
+          method={twoFactorData.method}
           onClose={() => {
             setIsTwoFactorModalOpen(false);
             setTwoFactorData(null);
@@ -459,7 +501,11 @@ export const App: React.FC = () => {
 
       <ForgotPasswordModal
         isOpen={isForgotPasswordModalOpen}
-        onClose={() => setIsForgotPasswordModalOpen(false)}
+        initialEmail={forgotPasswordEmailHint}
+        onClose={() => {
+          setIsForgotPasswordModalOpen(false);
+          setForgotPasswordEmailHint('');
+        }}
         onSwitchToLogin={() => {
           setIsForgotPasswordModalOpen(false);
           setIsLoginModalOpen(true);
@@ -483,15 +529,30 @@ export const App: React.FC = () => {
         isOpen={isProfileModalOpen}
         currentUser={currentUser}
         onClose={() => setIsProfileModalOpen(false)}
-        onProfileUpdated={profile => {
+        onRequestPasswordReset={(email) => {
+          setForgotPasswordEmailHint(email);
+          setIsForgotPasswordModalOpen(true);
+        }}
+        onSessionExpired={() => {
+          handleLogout();
+          showToast('Сеанс завершено. Будь ласка, увійдіть знову.', true);
+        }}
+        onProfileUpdated={(profile, newToken) => {
           if (currentUser) {
             const updated: AuthUser = {
               ...currentUser,
+              username: profile.username || currentUser.username,
+              fullName: profile.fullName || currentUser.fullName,
+              token: newToken || currentUser.token,
               emailVerified: profile.emailVerified,
-              twoFactorEnabled: profile.twoFactorEnabled
+              twoFactorEnabled: profile.twoFactorEnabled,
+              twoFactorMethod: profile.twoFactorMethod
             };
             setCurrentUser(updated);
             localStorage.setItem('repairhub_user', JSON.stringify(updated));
+            if (newToken) {
+              localStorage.setItem('repairhub_token', newToken);
+            }
           }
         }}
       />
@@ -502,6 +563,17 @@ export const App: React.FC = () => {
         onSubmit={handleCreateOrder}
         isStaff={isStaffUser}
         currentUser={currentUser}
+      />
+
+      <SupportTicketModal
+        isOpen={isSupportModalOpen}
+        initialEmail={supportEmailHint}
+        currentUser={currentUser}
+        onClose={() => {
+          setIsSupportModalOpen(false);
+          setSupportEmailHint('');
+        }}
+        onSuccess={(msg) => showToast(msg)}
       />
     </div>
   );

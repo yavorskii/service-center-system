@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldAlert, KeyRound, AlertCircle } from 'lucide-react';
+import { X, ShieldAlert, KeyRound, AlertCircle, Smartphone, Mail } from 'lucide-react';
 import { api } from '../services/api';
 import type { AuthUser } from '../types';
 
@@ -7,6 +7,7 @@ interface TwoFactorModalProps {
   isOpen: boolean;
   username: string;
   tempToken: string;
+  method?: string;
   onClose: () => void;
   onSuccess: (user: AuthUser) => void;
 }
@@ -15,6 +16,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
   isOpen,
   username,
   tempToken,
+  method = 'TOTP',
   onClose,
   onSuccess
 }) => {
@@ -30,6 +32,8 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const isTotp = method.toUpperCase() === 'TOTP';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,31 +66,47 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
           <X className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-5">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20">
-            <ShieldAlert className="w-6 h-6 text-white" />
+            {isTotp ? <Smartphone className="w-6 h-6 text-white" /> : <ShieldAlert className="w-6 h-6 text-white" />}
           </div>
           <div>
-            <h2 className="text-xl font-bold tracking-tight text-white">Двофакторна перевірка</h2>
-            <p className="text-xs text-slate-400">Обліковий запис: <span className="font-semibold text-slate-200">{username}</span></p>
+            <h2 className="text-xl font-bold tracking-tight text-white">Підтвердження 2FA</h2>
+            <p className="text-xs text-slate-400">
+              Акаунт: <span className="font-semibold text-slate-200 font-mono">{username}</span>
+            </p>
           </div>
         </div>
 
         {errorMessage && (
-          <div className="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm flex items-start gap-2.5">
-            <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400 mt-0.5" />
+          <div className="mb-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400 mt-0.5" />
             <span>{errorMessage}</span>
           </div>
         )}
 
-        <p className="text-sm text-slate-300 mb-5 leading-relaxed">
-          Ми надіслали одноразовий 6-значний код підтвердження на вашу електронну пошту. Введіть його нижче для завершення входу (код дійсний 5 хвилин).
-        </p>
+        <div className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 mb-5 flex items-start gap-2.5 text-xs text-slate-300 leading-relaxed">
+          {isTotp ? (
+            <>
+              <Smartphone className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <span>
+                Введіть поточний 6-значний код із застосунку <strong>Google Authenticator</strong>. Комбінація оновлюється кожні 30 секунд.
+              </span>
+            </>
+          ) : (
+            <>
+              <Mail className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+              <span>
+                На вашу електронну пошту надіслано одноразовий 6-значний код підтвердження (дійсний 5 хвилин).
+              </span>
+            </>
+          )}
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              6-значний код із листа *
+              {isTotp ? '6-значний код з автентифікатора *' : '6-значний код із листа *'}
             </label>
             <div className="relative">
               <KeyRound className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
@@ -98,7 +118,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                 placeholder="000000"
-                className="w-full pl-9 pr-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-lg text-center font-mono tracking-widest text-white focus:outline-none focus:border-amber-500 transition"
+                className="w-full pl-9 pr-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-lg text-center font-mono tracking-[0.35em] text-white focus:outline-none focus:border-amber-500 transition"
               />
             </div>
           </div>
