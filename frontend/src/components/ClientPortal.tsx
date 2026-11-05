@@ -387,7 +387,10 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
           </div>
 
           <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold text-white tracking-tight max-w-4xl mx-auto leading-tight">
-            Професійний ремонт техніки з <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-300">онлайн-відстеженням</span>
+            Професійний ремонт техніки з{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-sky-300 via-indigo-400 via-teal-300 to-blue-400 animate-gradient-text inline-block">
+              онлайн-відстеженням
+            </span>
           </h1>
 
           <p className="mt-4 sm:mt-6 text-sm sm:text-base text-slate-400 max-w-2xl mx-auto leading-relaxed">

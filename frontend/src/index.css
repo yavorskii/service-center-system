@@ -16,3 +16,20 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+@keyframes gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-gradient-text {
+  background-size: 250% auto;
+  animation: gradient-flow 5s ease infinite;
+}
