@@ -24,16 +24,20 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
-    if (initialToken) {
-      setToken(initialToken);
+    if (isOpen) {
+      setToken(initialToken || '');
+      setNewPassword('');
+      setConfirmPassword('');
+      setErrorMessage('');
+      setSuccessMessage('');
     }
-  }, [initialToken]);
+  }, [isOpen, initialToken]);
 
   const hasLength = newPassword.length >= 8;
   const hasUpper = /[A-Z]/.test(newPassword);
   const hasLower = /[a-z]/.test(newPassword);
   const hasNumber = /[0-9]/.test(newPassword);
-  const hasSpecial = /[!@#$%^&*()_+~`|}{[\]:;?><,./-]/.test(newPassword);
+  const hasSpecial = /[^a-zA-Z0-9]/.test(newPassword);
   const isMatch = newPassword.length > 0 && newPassword === confirmPassword;
 
   const passedCount = [hasLength, hasUpper, hasLower, hasNumber, hasSpecial].filter(Boolean).length;

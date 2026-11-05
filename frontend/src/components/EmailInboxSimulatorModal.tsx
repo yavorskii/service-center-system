@@ -49,9 +49,19 @@ export const EmailInboxSimulatorModal: React.FC<EmailInboxSimulatorModalProps> =
 
   if (!isOpen) return null;
 
-  const extractToken = (body: string): string | null => {
-    const match = body.match(/token=([a-zA-Z0-9_-]+)/) || body.match(/Код підтвердження:\s*([0-9]{6})/);
-    return match ? match[1] : null;
+  const resolveEmailToken = (email: MockEmail): string | null => {
+    if (email.token && email.token.trim().length > 0) {
+      return email.token.trim();
+    }
+    if (email.actionUrl) {
+      const urlMatch = email.actionUrl.match(/token=([a-zA-Z0-9_-]+)/);
+      if (urlMatch) return urlMatch[1];
+    }
+    const match =
+      email.body.match(/token=([a-zA-Z0-9_-]+)/) ||
+      email.body.match(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i) ||
+      email.body.match(/\b([0-9]{6})\b/);
+    return match ? (match[1] || match[0]) : null;
   };
 
   const handleActivateClick = async (token: string) => {
@@ -199,8 +209,12 @@ export const EmailInboxSimulatorModal: React.FC<EmailInboxSimulatorModalProps> =
                       type="button"
                       disabled={isActivating}
                       onClick={() => {
-                        const token = extractToken(selectedEmail.body);
-                        if (token) handleActivateClick(token);
+                        const token = resolveEmailToken(selectedEmail);
+                        if (token) {
+                          handleActivateClick(token);
+                        } else {
+                          setActivationStatus('Помилка: не вдалося знайти токен у листі');
+                        }
                       }}
                       className="px-4 py-2 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 transition disabled:opacity-50"
                     >
@@ -213,10 +227,12 @@ export const EmailInboxSimulatorModal: React.FC<EmailInboxSimulatorModalProps> =
                     <button
                       type="button"
                       onClick={() => {
-                        const token = extractToken(selectedEmail.body);
+                        const token = resolveEmailToken(selectedEmail);
                         if (token) {
                           onClose();
                           onOpenResetWithToken(token);
+                        } else {
+                          setActivationStatus('Помилка: не вдалося знайти токен відновлення');
                         }
                       }}
                       className="px-4 py-2 text-xs font-semibold rounded-lg bg-purple-600 hover:bg-purple-500 text-white flex items-center gap-1.5 transition"
@@ -229,7 +245,7 @@ export const EmailInboxSimulatorModal: React.FC<EmailInboxSimulatorModalProps> =
                   {selectedEmail.type === 'TWO_FACTOR_OTP' && (
                     <button
                       type="button"
-                      onClick={() => handleCopyOtp(selectedEmail.body)}
+                      onClick={() => handleCopyOtp(selectedEmail.token || selectedEmail.body)}
                       className="px-4 py-2 text-xs font-semibold rounded-lg bg-amber-600 hover:bg-amber-500 text-white flex items-center gap-1.5 transition"
                     >
                       {copiedCode ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}

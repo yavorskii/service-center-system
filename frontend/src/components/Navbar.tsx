@@ -25,6 +25,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const isAdmin = currentUser.role === 'ROLE_ADMIN';
   const isManager = currentUser.role === 'ROLE_MANAGER';
+  const isRegularUser = currentUser.role === 'ROLE_USER' || currentUser.role === 'ROLE_CLIENT';
 
   const getRoleBadge = (role: string) => {
     if (role === 'ROLE_ADMIN') {
@@ -77,7 +78,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Wrench className="h-4 w-4 text-white" />
               </div>
               <span className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
-                RepairHub <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">CRM</span>
+                RepairHub{' '}
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">
+                  {isRegularUser ? 'КАБІНЕТ' : 'CRM'}
+                </span>
               </span>
             </div>
           </div>
@@ -92,20 +96,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <Laptop className="h-3.5 w-3.5" />
-              <span>Замовлення</span>
+              <span>{isRegularUser ? 'Мої заявки' : 'Замовлення'}</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab('warehouse')}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-                activeTab === 'warehouse'
-                  ? 'bg-indigo-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-            >
-              <Package className="h-3.5 w-3.5" />
-              <span>Склад</span>
-            </button>
+            {!isRegularUser && (
+              <button
+                onClick={() => setActiveTab('warehouse')}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                  activeTab === 'warehouse'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <Package className="h-3.5 w-3.5" />
+                <span>Склад</span>
+              </button>
+            )}
 
             {(isAdmin || isManager) && (
               <button
@@ -186,8 +192,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm transition-all flex items-center gap-1.5 active:scale-95 whitespace-nowrap"
             >
               <Plus className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Прийом техніки</span>
-              <span className="sm:hidden">Прийом</span>
+              <span className="hidden sm:inline">{isRegularUser ? 'Нова заявка' : 'Прийом техніки'}</span>
+              <span className="sm:hidden">{isRegularUser ? 'Заявка' : 'Прийом'}</span>
             </button>
 
             <button

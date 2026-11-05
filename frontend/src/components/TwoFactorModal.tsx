@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, ShieldAlert, KeyRound, AlertCircle, Inbox } from 'lucide-react';
 import { api } from '../services/api';
 import type { AuthUser } from '../types';
@@ -23,6 +23,13 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
   const [code, setCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setCode('');
+      setErrorMessage('');
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -50,11 +57,13 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
   const handleFetchLatestOtp = async () => {
     try {
       const emails = await api.getMockEmails();
-      const otpEmail = emails.find(e => e.type === 'TWO_FACTOR_OTP' || e.subject.includes('Двофакторна автентифікація'));
+      const otpEmail = emails.find(e => e.type === 'TWO_FACTOR_OTP' || e.subject.includes('2FA') || e.subject.includes('Двофакторна'));
       if (otpEmail) {
-        const match = otpEmail.body.match(/\b\d{6}\b/);
-        if (match) {
-          setCode(match[0]);
+        const otpValue = otpEmail.token && /^\d{6}$/.test(otpEmail.token)
+          ? otpEmail.token
+          : otpEmail.body.match(/\b\d{6}\b/)?.[0];
+        if (otpValue) {
+          setCode(otpValue);
           setErrorMessage('');
           return;
         }

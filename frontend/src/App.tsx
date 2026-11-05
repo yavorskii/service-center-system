@@ -12,14 +12,15 @@ import { UserProfileModal } from './components/UserProfileModal';
 import { SecurityAuditView } from './components/SecurityAuditView';
 import { Navbar } from './components/Navbar';
 import { StatsCards } from './components/StatsCards';
-import { OrderCard } from './components/OrderCard';
+import { OrderCard, statusConfig } from './components/OrderCard';
 import { OrderTableView } from './components/OrderTableView';
 import { OrderCreateModal } from './components/OrderCreateModal';
+import { OrderDetailsModal } from './components/OrderDetailsModal';
 import { PublicTrackingView } from './components/PublicTrackingView';
 import { WarehouseView } from './components/WarehouseView';
 import { ClientsView } from './components/ClientsView';
 import { StaffView } from './components/StaffView';
-import { Search, RefreshCw, CheckCircle2, LayoutGrid, List, X, Mail } from 'lucide-react';
+import { Search, RefreshCw, CheckCircle2, LayoutGrid, List, X, Mail, ShieldCheck, KeyRound } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => api.getCurrentUser());
@@ -33,6 +34,7 @@ export const App: React.FC = () => {
   const [isInboxModalOpen, setIsInboxModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +65,27 @@ export const App: React.FC = () => {
     fetchOrders();
   }, [currentUser]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const path = window.location.pathname;
+    if (token && path.includes('/activate')) {
+      api.activateAccount(token)
+        .then(msg => showToast(msg))
+        .catch((err: any) => showToast(err?.message || 'Помилка активації токена'))
+        .finally(() => window.history.replaceState({}, '', '/'));
+    } else if (token && path.includes('/reset-password')) {
+      setResetPasswordToken(token);
+      setIsResetPasswordModalOpen(true);
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
+
+  const isRegularUser = currentUser?.role === 'ROLE_USER' || currentUser?.role === 'ROLE_CLIENT';
+  const isAdmin = currentUser?.role === 'ROLE_ADMIN';
+  const isManager = currentUser?.role === 'ROLE_MANAGER';
+
   const handleLoginSuccess = (user: AuthUser) => {
     setCurrentUser(user);
     showToast(`Ви успішно увійшли як ${user.fullName}`);
@@ -71,6 +94,7 @@ export const App: React.FC = () => {
   const handleLogout = () => {
     api.logout();
     setCurrentUser(null);
+    setSelectedOrder(null);
     setActiveTab('orders');
     showToast('Ви вийшли з внутрішньої панелі CRM');
   };
@@ -94,21 +118,33 @@ export const App: React.FC = () => {
     showToast(`Замовлення ${created.orderNumber} успішно створено (код трекінгу: ${created.trackingCode})`);
   };
 
+  const handleOrderUpdated = (updated: Order, toastMsg?: string) => {
+    setOrders(prev => prev.map(o => (o.id === updated.id ? updated : o)));
+    setSelectedOrder(prev => (prev && prev.id === updated.id ? updated : prev));
+    if (toastMsg) {
+      showToast(toastMsg);
+    }
+  };
+
   const handleStatusChange = async (orderId: number, newStatus: OrderStatus) => {
-    const updated = await api.updateOrderStatus(orderId, newStatus);
-    setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
-    showToast(`Статус ${updated.orderNumber} змінено на "${newStatus}"`);
+    try {
+      const updated = await api.updateOrderStatus(orderId, newStatus);
+      handleOrderUpdated(updated, `Статус ${updated.orderNumber} змінено на "${statusConfig[newStatus].label}"`);
+    } catch (err: any) {
+      showToast(err?.message || 'Не вдалося змінити статус');
+    }
   };
 
   const handleDeleteOrder = async (orderId: number) => {
     if (currentUser?.role !== 'ROLE_ADMIN') return;
-    if (!window.confirm('Ви дійсно бажаєте безповоротно видалити це замовлення?')) return;
+    if (!window.confirm('Ви дійсно бажаєте безповоротно видалити це замовлення? Невидані запчастини повернуться на склад.')) return;
     try {
       await api.deleteOrder(orderId);
       setOrders(prev => prev.filter(o => o.id !== orderId));
+      if (selectedOrder?.id === orderId) setSelectedOrder(null);
       showToast('Замовлення успішно видалено з бази даних');
-    } catch {
-      showToast('Помилка видалення замовлення');
+    } catch (err: any) {
+      showToast(err?.message || 'Помилка видалення замовлення');
     }
   };
 
@@ -119,14 +155,15 @@ export const App: React.FC = () => {
       IN_DIAGNOSTICS: orders.filter(o => o.status === 'IN_DIAGNOSTICS').length,
       IN_PROGRESS: orders.filter(o => o.status === 'IN_PROGRESS' || o.status === 'PENDING_APPROVAL').length,
       READY_FOR_PICKUP: orders.filter(o => o.status === 'READY_FOR_PICKUP').length,
-      COMPLETED: orders.filter(o => o.status === 'COMPLETED').length,
+      COMPLETED: orders.filter(o => o.status === 'COMPLETED').length
     };
   }, [orders]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
       const q = searchQuery.toLowerCase().trim();
-      const matchQuery = !q ||
+      const matchQuery =
+        !q ||
         order.orderNumber.toLowerCase().includes(q) ||
         order.trackingCode.toLowerCase().includes(q) ||
         order.client.fullName.toLowerCase().includes(q) ||
@@ -134,8 +171,8 @@ export const App: React.FC = () => {
         order.device.model.toLowerCase().includes(q) ||
         order.device.brand.toLowerCase().includes(q);
 
-      const matchStatus = 
-        selectedStatus === 'ALL' || 
+      const matchStatus =
+        selectedStatus === 'ALL' ||
         order.status === selectedStatus ||
         (selectedStatus === 'IN_PROGRESS' && order.status === 'PENDING_APPROVAL');
 
@@ -149,7 +186,7 @@ export const App: React.FC = () => {
     { key: 'IN_DIAGNOSTICS', label: 'Діагностика', count: statusCounts.IN_DIAGNOSTICS },
     { key: 'IN_PROGRESS', label: 'В роботі', count: statusCounts.IN_PROGRESS },
     { key: 'READY_FOR_PICKUP', label: 'Готові до видачі', count: statusCounts.READY_FOR_PICKUP },
-    { key: 'COMPLETED', label: 'Видані', count: statusCounts.COMPLETED },
+    { key: 'COMPLETED', label: 'Видані', count: statusCounts.COMPLETED }
   ];
 
   return (
@@ -192,28 +229,43 @@ export const App: React.FC = () => {
 
           <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full space-y-6">
             {activeTab === 'tracking' && (
-              <PublicTrackingView onSearch={(code) => api.getOrderByTrackingCode(code)} />
+              <PublicTrackingView onSearch={code => api.getOrderByTrackingCode(code)} />
             )}
 
-            {activeTab === 'warehouse' && (
-              <WarehouseView currentUser={currentUser} />
+            {!isRegularUser && activeTab === 'warehouse' && (
+              <WarehouseView currentUser={currentUser} orders={orders} onNotify={showToast} />
             )}
 
-            {activeTab === 'clients' && (
-              <ClientsView />
-            )}
+            {(isAdmin || isManager) && activeTab === 'clients' && <ClientsView />}
 
-            {activeTab === 'staff' && (
-              <StaffView />
-            )}
+            {isAdmin && activeTab === 'staff' && <StaffView />}
 
-            {activeTab === 'security' && (
-              <SecurityAuditView />
-            )}
+            {isAdmin && activeTab === 'security' && <SecurityAuditView />}
 
             {activeTab === 'orders' && (
               <>
-                <StatsCards orders={orders} currentUser={currentUser} />
+                {isRegularUser ? (
+                  <div className="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/20 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-base font-bold text-white flex items-center gap-2">
+                        <ShieldCheck className="w-5 h-5 text-sky-400" />
+                        <span>Особистий кабінет користувача: {currentUser.fullName}</span>
+                      </h2>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Ви маєте доступ лише до власного профілю безпеки, двофакторної автентифікації (2FA), власних заявок та онлайн-трекінгу.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setIsProfileModalOpen(true)}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-500/20 transition shrink-0"
+                    >
+                      <KeyRound className="w-4 h-4" />
+                      <span>Налаштування профілю та 2FA</span>
+                    </button>
+                  </div>
+                ) : (
+                  <StatsCards orders={orders} currentUser={currentUser} />
+                )}
 
                 <div className="bg-[#111827] border border-slate-800 rounded-2xl p-4 shadow-sm space-y-3.5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -223,7 +275,7 @@ export const App: React.FC = () => {
                         type="text"
                         placeholder="Пошук за номером, кодом трекінгу, телефоном, клієнтом..."
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={e => setSearchQuery(e.target.value)}
                         className="w-full pl-9 pr-9 py-2 bg-[#0B0F19] border border-slate-800 rounded-lg text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
                       />
                       {searchQuery && (
@@ -282,9 +334,11 @@ export const App: React.FC = () => {
                           }`}
                         >
                           <span>{tab.label}</span>
-                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                            isActive ? 'bg-indigo-700/60 text-white' : 'bg-slate-800 text-slate-400'
-                          }`}>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                              isActive ? 'bg-indigo-700/60 text-white' : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
                             {tab.count}
                           </span>
                         </button>
@@ -302,7 +356,10 @@ export const App: React.FC = () => {
                   <div className="py-16 text-center bg-[#111827] border border-slate-800 rounded-xl">
                     <p className="text-xs text-slate-400">Замовлень за вказаними фільтрами не знайдено</p>
                     <button
-                      onClick={() => { setSearchQuery(''); setSelectedStatus('ALL'); }}
+                      onClick={() => {
+                        setSearchQuery('');
+                        setSelectedStatus('ALL');
+                      }}
                       className="mt-2 text-xs text-indigo-400 hover:underline"
                     >
                       Скинути всі фільтри
@@ -316,6 +373,7 @@ export const App: React.FC = () => {
                         order={order}
                         currentUser={currentUser}
                         onStatusChange={handleStatusChange}
+                        onOpenDetails={o => setSelectedOrder(o)}
                         onDeleteOrder={handleDeleteOrder}
                       />
                     ))}
@@ -325,12 +383,22 @@ export const App: React.FC = () => {
                     orders={filteredOrders}
                     currentUser={currentUser}
                     onStatusChange={handleStatusChange}
+                    onOpenDetails={o => setSelectedOrder(o)}
                     onDeleteOrder={handleDeleteOrder}
                   />
                 )}
               </>
             )}
           </main>
+
+          <OrderDetailsModal
+            order={selectedOrder}
+            isOpen={!!selectedOrder}
+            currentUser={currentUser}
+            onClose={() => setSelectedOrder(null)}
+            onOrderUpdated={handleOrderUpdated}
+            onOpenWarehouseTab={() => setActiveTab('warehouse')}
+          />
         </>
       )}
 

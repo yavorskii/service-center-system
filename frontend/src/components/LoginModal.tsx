@@ -38,9 +38,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setError(null);
     try {
       const user = await api.login(username.trim(), password.trim());
-      if (user.twoFactorRequired && user.tempToken) {
+      if (user.twoFactorRequired) {
         onClose();
-        onRequireTwoFactor(user.username, user.tempToken);
+        onRequireTwoFactor(user.username, user.tempToken || '');
         return;
       }
       onSuccess(user);

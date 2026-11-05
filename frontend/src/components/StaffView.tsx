@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { StaffMember } from '../types';
 import { api } from '../services/api';
-import { Shield, UserCheck, Wrench, ShieldCheck, Key, Phone, CheckCircle2 } from 'lucide-react';
+import { Shield, UserCheck, Wrench, ShieldCheck, Key, Phone, CheckCircle2, User, Lock } from 'lucide-react';
 
 export const StaffView: React.FC = () => {
   const [staff, setStaff] = useState<StaffMember[]>([]);
@@ -29,6 +29,14 @@ export const StaffView: React.FC = () => {
         badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
         icon: UserCheck,
         description: 'Робота з клієнтами: повна клієнтська база, узгодження кошторисів, видача техніки та проведення оплат.'
+      };
+    }
+    if (role === 'ROLE_USER' || role === 'ROLE_CLIENT') {
+      return {
+        label: 'Користувач (Клієнт)',
+        badge: 'bg-sky-500/10 text-sky-400 border-sky-500/20',
+        icon: User,
+        description: 'Зовнішній обліковий запис клієнта: доступ лише до власного профілю безпеки, 2FA, власних заявок та онлайн-трекінгу.'
       };
     }
     return {
@@ -137,10 +145,17 @@ export const StaffView: React.FC = () => {
                         </div>
                       </td>
                       <td className="py-3 px-4 text-center">
-                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
-                          <CheckCircle2 className="h-3 w-3" />
-                          <span>Активний</span>
-                        </span>
+                        {member.isLocked ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-medium">
+                            <Lock className="h-3 w-3" />
+                            <span>Заблоковано</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+                            <CheckCircle2 className="h-3 w-3" />
+                            <span>Активний</span>
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );

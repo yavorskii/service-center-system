@@ -36,8 +36,8 @@ export const SecurityAuditView: React.FC = () => {
       await api.lockUser(id);
       setActionMessage(`Користувача ${username} успішно заблоковано`);
       loadData();
-    } catch {
-      setActionMessage(`Помилка блокування ${username}`);
+    } catch (err: any) {
+      setActionMessage(err?.message || `Помилка блокування ${username}`);
     }
   };
 
@@ -46,24 +46,34 @@ export const SecurityAuditView: React.FC = () => {
       await api.unlockUser(id);
       setActionMessage(`Користувача ${username} успішно розблоковано`);
       loadData();
-    } catch {
-      setActionMessage(`Помилка розблокування ${username}`);
+    } catch (err: any) {
+      setActionMessage(err?.message || `Помилка розблокування ${username}`);
     }
   };
 
+  const isSuccessStatus = (s: string) => s === 'SUCCESS' || s === 'OAUTH_LOGIN' || s === 'OAUTH_REGISTER';
+  const isFailedStatus = (s: string) => s.startsWith('FAILED') || s === 'ACTIVATION_REQUIRED';
+  const isLockedStatus = (s: string) =>
+    s === 'ACCOUNT_LOCKED' || s === 'BLOCKED_BY_ADMIN' || s === 'OAUTH_BLOCKED' || s === 'LOCKED';
+
   const filteredLogs = logs.filter(log => {
-    const matchesSearch = 
+    const matchesSearch =
       log.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
       log.ipAddress.includes(searchTerm) ||
       (log.details && log.details.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus = statusFilter === 'ALL' || log.status === statusFilter;
+    const matchesStatus =
+      statusFilter === 'ALL' ||
+      (statusFilter === 'SUCCESS_GROUP' && isSuccessStatus(log.status)) ||
+      (statusFilter === 'FAILED_GROUP' && isFailedStatus(log.status)) ||
+      (statusFilter === 'LOCKED_GROUP' && isLockedStatus(log.status)) ||
+      log.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const totalAttempts = logs.length;
-  const successAttempts = logs.filter(l => l.status === 'SUCCESS').length;
-  const failedAttempts = logs.filter(l => l.status === 'FAILED').length;
-  const lockedEvents = logs.filter(l => l.status === 'LOCKED').length;
+  const successAttempts = logs.filter(l => isSuccessStatus(l.status)).length;
+  const failedAttempts = logs.filter(l => isFailedStatus(l.status)).length;
+  const lockedEvents = logs.filter(l => isLockedStatus(l.status)).length;
 
   return (
     <div className="space-y-6">
@@ -149,7 +159,8 @@ export const SecurityAuditView: React.FC = () => {
                 <th className="py-2.5 px-3">Користувач</th>
                 <th className="py-2.5 px-3">ПІБ</th>
                 <th className="py-2.5 px-3">Роль</th>
-                <th className="py-2.5 px-3">Email</th>
+                <th className="py-2.5 px-3">Email / Верифікація</th>
+                <th className="py-2.5 px-3">2FA</th>
                 <th className="py-2.5 px-3">Помилок входу</th>
                 <th className="py-2.5 px-3">Статус</th>
                 <th className="py-2.5 px-3 text-right">Дія</th>
@@ -157,7 +168,7 @@ export const SecurityAuditView: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-800">
               {staff.map((user) => {
-                const isLocked = user.isLocked || (user.failedLoginAttempts && user.failedLoginAttempts >= 5);
+                const isLocked = Boolean(user.isLocked);
                 return (
                   <tr key={user.id} className="hover:bg-slate-800/40 transition">
                     <td className="py-2.5 px-3 font-mono text-white font-medium">{user.username}</td>
@@ -167,7 +178,25 @@ export const SecurityAuditView: React.FC = () => {
                         {user.role}
                       </span>
                     </td>
-                    <td className="py-2.5 px-3 text-slate-400">{user.email || '—'}</td>
+                    <td className="py-2.5 px-3 text-slate-400">
+                      <div className="flex flex-col gap-0.5">
+                        <span>{user.email || '—'}</span>
+                        {user.emailVerified === false ? (
+                          <span className="text-[10px] text-amber-400">Не активовано</span>
+                        ) : (
+                          <span className="text-[10px] text-emerald-400/80">Підтверджено</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      {user.twoFactorEnabled ? (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-semibold">
+                          2FA ON
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-500">OFF</span>
+                      )}
+                    </td>
                     <td className="py-2.5 px-3">
                       <span className={`font-mono font-semibold ${user.failedLoginAttempts && user.failedLoginAttempts > 0 ? 'text-amber-400' : 'text-slate-400'}`}>
                         {user.failedLoginAttempts || 0} / 5
@@ -237,11 +266,11 @@ export const SecurityAuditView: React.FC = () => {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="px-2.5 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500"
             >
-              <option value="ALL">Всі статуси</option>
-              <option value="SUCCESS">SUCCESS</option>
-              <option value="FAILED">FAILED</option>
-              <option value="LOCKED">LOCKED</option>
-              <option value="TWO_FACTOR_REQUIRED">TWO_FACTOR_REQUIRED</option>
+              <option value="ALL">Всі події</option>
+              <option value="SUCCESS_GROUP">Успішні входи (SUCCESS / OAuth)</option>
+              <option value="FAILED_GROUP">Невдалі спроби (FAILED_*)</option>
+              <option value="LOCKED_GROUP">Блокування (ACCOUNT_LOCKED / ADMIN)</option>
+              <option value="TWO_FACTOR_REQUIRED">Запит 2FA (TWO_FACTOR_REQUIRED)</option>
             </select>
           </div>
         </div>
@@ -267,18 +296,19 @@ export const SecurityAuditView: React.FC = () => {
               ) : (
                 filteredLogs.map((log) => {
                   const getStatusBadge = () => {
-                    switch (log.status) {
-                      case 'SUCCESS':
-                        return <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">SUCCESS</span>;
-                      case 'FAILED':
-                        return <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-semibold border border-rose-500/30">FAILED</span>;
-                      case 'LOCKED':
-                        return <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-semibold border border-purple-500/30">LOCKED</span>;
-                      case 'TWO_FACTOR_REQUIRED':
-                        return <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">2FA REQUIRED</span>;
-                      default:
-                        return <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">{log.status}</span>;
+                    if (isSuccessStatus(log.status)) {
+                      return <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30">{log.status}</span>;
                     }
+                    if (isLockedStatus(log.status)) {
+                      return <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-semibold border border-purple-500/30">{log.status}</span>;
+                    }
+                    if (isFailedStatus(log.status)) {
+                      return <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-semibold border border-rose-500/30">{log.status}</span>;
+                    }
+                    if (log.status === 'TWO_FACTOR_REQUIRED' || log.status === '2FA_TOGGLED') {
+                      return <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/30">{log.status}</span>;
+                    }
+                    return <span className="px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 font-medium">{log.status}</span>;
                   };
 
                   return (

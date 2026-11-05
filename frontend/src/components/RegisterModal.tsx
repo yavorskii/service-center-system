@@ -57,7 +57,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   const hasUpper = /[A-Z]/.test(password);
   const hasLower = /[a-z]/.test(password);
   const hasNumber = /[0-9]/.test(password);
-  const hasSpecial = /[!@#$%^&*()_+~`|}{[\]:;?><,./-]/.test(password);
+  const hasSpecial = /[^a-zA-Z0-9]/.test(password);
   const isMatch = password.length > 0 && password === confirmPassword;
 
   const passedCount = [hasLength, hasUpper, hasLower, hasNumber, hasSpecial].filter(Boolean).length;
@@ -70,14 +70,42 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   };
 
   const strength = getStrengthLabel();
-  const isFormValid = passedCount === 5 && isMatch && username.trim().length >= 3 && fullName.trim().length > 0 && captchaAnswer.trim().length > 0;
+  const canAttemptSubmit = username.trim().length >= 3 && fullName.trim().length > 0 && email.trim().length > 0 && password.length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isFormValid || !captchaData) return;
+    setErrorMessage('');
+
+    if (!hasLength) {
+      setErrorMessage('Помилка політики пароля: мінімальна довжина — 8 символів');
+      return;
+    }
+    if (!hasUpper) {
+      setErrorMessage('Помилка політики пароля: додайте хоча б одну велику літеру (A-Z)');
+      return;
+    }
+    if (!hasLower) {
+      setErrorMessage('Помилка політики пароля: додайте хоча б одну малу літеру (a-z)');
+      return;
+    }
+    if (!hasNumber) {
+      setErrorMessage('Помилка політики пароля: додайте хоча б одну цифру (0-9)');
+      return;
+    }
+    if (!hasSpecial) {
+      setErrorMessage('Помилка політики пароля: додайте хоча б один спеціальний символ (!@#$%^&*)');
+      return;
+    }
+    if (!isMatch) {
+      setErrorMessage('Підтвердження пароля не співпадає з введеним паролем');
+      return;
+    }
+    if (!captchaData || captchaAnswer.trim().length === 0) {
+      setErrorMessage('Введіть 5 символів із зображення CAPTCHA для захисту від ботів');
+      return;
+    }
 
     setIsSubmitting(true);
-    setErrorMessage('');
 
     try {
       const user = await api.register({
@@ -90,11 +118,13 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
         captchaAnswer: captchaAnswer.trim()
       });
 
-      setSuccessInfo('Обліковий запис успішно створено! Лист для активації надіслано на вказану поштову скриньку.');
-      setTimeout(() => {
+      if (user.token) {
         onSuccess(user);
         onClose();
-      }, 2500);
+        return;
+      }
+
+      setSuccessInfo('Обліковий запис створено! На вашу електронну пошту надіслано одноразове посилання для активації (дійсне 24 год). Підтвердіть пошту перед входом.');
     } catch (err: any) {
       setErrorMessage(err.message || 'Помилка реєстрації');
       loadCaptcha();
@@ -139,7 +169,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
             </div>
             <h3 className="text-lg font-bold text-white">Реєстрація успішна!</h3>
             <p className="text-sm text-slate-300 max-w-md mx-auto">{successInfo}</p>
-            <div className="pt-2 flex justify-center gap-3">
+            <div className="pt-2 flex flex-wrap justify-center gap-3">
               <button
                 type="button"
                 onClick={() => {
@@ -149,6 +179,16 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                 className="px-4 py-2 text-sm font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg transition"
               >
                 Відкрити симулятор пошти
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onSwitchToLogin();
+                }}
+                className="px-4 py-2 text-sm font-semibold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+              >
+                Перейти до входу
               </button>
             </div>
           </div>
@@ -331,10 +371,9 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
                 />
                 <input
                   type="text"
-                  required
                   value={captchaAnswer}
                   onChange={(e) => setCaptchaAnswer(e.target.value)}
-                  placeholder="Введіть 4 символи"
+                  placeholder="Введіть 5 символів"
                   maxLength={6}
                   className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-center font-mono tracking-widest text-white uppercase focus:outline-none focus:border-indigo-500 transition"
                 />
@@ -343,7 +382,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
 
             <button
               type="submit"
-              disabled={!isFormValid || isSubmitting}
+              disabled={!canAttemptSubmit || isSubmitting}
               className="w-full py-2.5 px-4 rounded-xl font-semibold text-white bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25 transition duration-200"
             >
               {isSubmitting ? 'Створення облікового запису...' : 'Зареєструватися'}
