@@ -62,7 +62,8 @@
 
 .card-hover:hover {
   transform: translateY(-8px) scale(1.025);
-  box-shadow: 0 20px 40px -12px rgba(59, 130, 246, 0.35);
+  box-shadow: 0 20px 40px -12px rgba(56, 189, 248, 0.3);
+  border-color: rgba(56, 189, 248, 0.45);
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -86,7 +87,7 @@
   }
 }
 
-@keyframes rainbow-flow {
+@keyframes electric-glow-flow {
   0% {
     background-position: 0% 50%;
   }
@@ -98,25 +99,22 @@
   }
 }
 
-.animate-rainbow-text {
+.animate-rainbow-text,
+.animate-electric-text {
   background-image: linear-gradient(
-    115deg,
-    #ef4444 0%,
-    #f97316 15%,
-    #eab308 30%,
-    #10b981 45%,
-    #06b6d4 60%,
-    #3b82f6 75%,
-    #a855f7 88%,
-    #ec4899 95%,
-    #ef4444 100%
+    135deg,
+    #38bdf8 0%,
+    #0ea5e9 25%,
+    #3b82f6 50%,
+    #6366f1 75%,
+    #38bdf8 100%
   );
   background-size: 250% auto;
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: rainbow-flow 28s linear infinite;
-  filter: drop-shadow(0 0 16px rgba(59, 130, 246, 0.4));
+  animation: electric-glow-flow 8s ease-in-out infinite;
+  filter: drop-shadow(0 0 24px rgba(56, 189, 248, 0.5));
 }
 
 .animate-gradient-text {
