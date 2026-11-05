@@ -34,7 +34,7 @@ interface TurnstileWidgetProps {
 export const TurnstileWidget: React.FC<TurnstileWidgetProps> = ({
   onVerify,
   onExpire,
-  siteKey = import.meta.env.VITE_CLOUDFLARE_TURNSTILE_SITE_KEY || '1x00000000000000000000AA',
+  siteKey = import.meta.env.VITE_CLOUDFLARE_TURNSTILE_SITE_KEY || '3x00000000000000000000FF',
   theme = 'dark',
   className = ''
 }) => {
@@ -129,7 +129,7 @@ export const TurnstileWidget: React.FC<TurnstileWidgetProps> = ({
 
   const handleSimulatePass = () => {
     // Fallback if adblocker blocks Cloudflare domain on localhost
-    const dummyToken = '1x00000000000000000000AA';
+    const dummyToken = '3x00000000000000000000FF';
     setIsVerified(true);
     setLoadError(false);
     onVerify(dummyToken);

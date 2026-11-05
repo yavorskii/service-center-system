@@ -29,7 +29,7 @@ public class CaptchaService {
     @Value("${cloudflare.turnstile.secret-key:1x0000000000000000000000000000000AA}")
     private String turnstileSecretKey;
 
-    @Value("${cloudflare.turnstile.site-key:1x00000000000000000000AA}")
+    @Value("${cloudflare.turnstile.site-key:3x00000000000000000000FF}")
     private String turnstileSiteKey;
 
     @Value("${cloudflare.turnstile.verify-url:https://challenges.cloudflare.com/turnstile/v0/siteverify}")
@@ -94,6 +94,7 @@ public class CaptchaService {
 
         // Cloudflare official dummy pass test keys / local offline dev
         if ("1x00000000000000000000AA".equals(responseToken)
+                || "3x00000000000000000000FF".equals(responseToken)
                 || responseToken.startsWith("cf-test-pass")
                 || "dummy-turnstile-token".equals(responseToken)) {
             return true;
