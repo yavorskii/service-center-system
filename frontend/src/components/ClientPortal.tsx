@@ -380,10 +380,18 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
       )}
 
       <section id="hero" className="relative pt-12 pb-16 md:pt-16 md:pb-20 overflow-hidden border-b border-slate-800/60 bg-gradient-to-b from-[#0F172A]/40 to-transparent">
+        {/* Animated ambient background orbs */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[380px] bg-gradient-to-tr from-blue-600/20 via-indigo-500/15 to-purple-600/20 rounded-full blur-[110px] pointer-events-none animate-pulse-glow -z-0" />
+        <div className="absolute top-1/3 left-1/4 w-[320px] h-[320px] bg-sky-500/10 rounded-full blur-[90px] pointer-events-none animate-pulse-glow-delayed -z-0" />
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-medium mb-6 animate-in fade-in slide-in-from-top-3 duration-300">
-            <ShieldCheck className="h-4 w-4" />
-            <span>Офіційна гарантія до 6 місяців на всі види робіт</span>
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/80 border border-slate-700/80 text-slate-300 text-xs font-medium mb-6 shadow-lg shadow-blue-500/5 hover:border-blue-500/40 transition-all cursor-default">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            <span>Офіційна гарантія до 6 місяців • Працюємо онлайн</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold text-white tracking-tight max-w-4xl mx-auto leading-tight">
@@ -397,7 +405,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
             Швидка діагностика за 30 хвилин, оригінальні комплектуючі та прозорі ціни. Перевірте статус вашого ремонту в реальному часі прямо зараз.
           </p>
 
-          <div id="tracking" className="mt-8 max-w-2xl mx-auto bg-[#111827] p-2.5 sm:p-3 rounded-2xl border border-slate-800 shadow-2xl shadow-blue-900/10">
+          <div id="tracking" className="mt-8 max-w-2xl mx-auto bg-[#111827] p-2.5 sm:p-3 rounded-2xl border border-slate-800 shadow-2xl shadow-blue-900/15 focus-within:border-blue-500/60 focus-within:shadow-blue-500/10 transition-all duration-300">
             <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
@@ -412,7 +420,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               <button
                 type="submit"
                 disabled={isSearching}
-                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold transition-all shadow-md flex items-center justify-center gap-2 shrink-0 active:scale-95 disabled:opacity-50"
+                className="shimmer-btn px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold transition-all shadow-md shadow-blue-600/25 hover:shadow-blue-500/40 flex items-center justify-center gap-2 shrink-0 active:scale-95 disabled:opacity-50"
               >
                 <Search className="h-4 w-4" />
                 <span>{isSearching ? 'Пошук...' : 'Перевірити статус'}</span>
@@ -423,7 +431,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               <button
                 type="button"
                 onClick={() => setSearchQuery('TRK-A8F91B')}
-                className="text-blue-400 hover:underline font-mono"
+                className="text-blue-400 hover:text-blue-300 hover:underline font-mono transition-colors"
               >
                 Спробувати: TRK-A8F91B
               </button>
@@ -431,23 +439,23 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 max-w-4xl mx-auto mt-12 text-left">
-            <div className="p-3.5 rounded-xl bg-[#111827]/80 border border-slate-800">
-              <Clock className="h-5 w-5 text-blue-400 mb-2" />
+            <div className="p-3.5 rounded-xl bg-[#111827]/80 border border-slate-800 card-hover group cursor-default hover:border-blue-500/50">
+              <Clock className="h-5 w-5 text-blue-400 mb-2 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300" />
               <div className="text-sm font-bold text-white">Від 30 хвилин</div>
               <div className="text-xs text-slate-400">Експрес-діагностика дефектів</div>
             </div>
-            <div className="p-3.5 rounded-xl bg-[#111827]/80 border border-slate-800">
-              <ShieldCheck className="h-5 w-5 text-emerald-400 mb-2" />
+            <div className="p-3.5 rounded-xl bg-[#111827]/80 border border-slate-800 card-hover group cursor-default hover:border-emerald-500/50">
+              <ShieldCheck className="h-5 w-5 text-emerald-400 mb-2 group-hover:scale-110 group-hover:-rotate-6 transition-transform duration-300" />
               <div className="text-sm font-bold text-white">Гарантія 6 міс.</div>
               <div className="text-xs text-slate-400">Офіційний акт та чек</div>
             </div>
-            <div className="p-3.5 rounded-xl bg-[#111827]/80 border border-slate-800">
-              <Wrench className="h-5 w-5 text-amber-400 mb-2" />
+            <div className="p-3.5 rounded-xl bg-[#111827]/80 border border-slate-800 card-hover group cursor-default hover:border-amber-500/50">
+              <Wrench className="h-5 w-5 text-amber-400 mb-2 group-hover:scale-110 group-hover:rotate-6 transition-transform duration-300" />
               <div className="text-sm font-bold text-white">Оригінальні деталі</div>
               <div className="text-xs text-slate-400">Власний склад комплектуючих</div>
             </div>
-            <div className="p-3.5 rounded-xl bg-[#111827]/80 border border-slate-800">
-              <CheckCircle2 className="h-5 w-5 text-indigo-400 mb-2" />
+            <div className="p-3.5 rounded-xl bg-[#111827]/80 border border-slate-800 card-hover group cursor-default hover:border-indigo-500/50">
+              <CheckCircle2 className="h-5 w-5 text-indigo-400 mb-2 group-hover:scale-110 group-hover:-rotate-6 transition-transform duration-300" />
               <div className="text-sm font-bold text-white">Live-трекінг</div>
               <div className="text-xs text-slate-400">Прозорий статус ремонту</div>
             </div>
@@ -504,12 +512,12 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 flex flex-col justify-between hover:border-slate-700 transition-colors">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 flex flex-col justify-between card-hover hover:border-blue-500/50 group">
               <div>
-                <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center mb-4">
-                  <Laptop className="h-5 w-5" />
+                <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                  <Laptop className="h-5 w-5 animate-float" />
                 </div>
-                <h3 className="text-base font-bold text-white mb-2">Ремонт ноутбуків</h3>
+                <h3 className="text-base font-bold text-white mb-2 group-hover:text-blue-300 transition-colors">Ремонт ноутбуків</h3>
                 <ul className="text-xs text-slate-400 space-y-2 mb-6">
                   <li className="flex items-center justify-between">
                     <span>Чистка + термопаста</span>
@@ -531,18 +539,18 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               </div>
               <button
                 onClick={onOpenCreateModal}
-                className="w-full py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+                className="w-full py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-blue-600 text-white transition-all duration-200 active:scale-95"
               >
                 Записатися на ремонт
               </button>
             </div>
 
-            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 flex flex-col justify-between hover:border-slate-700 transition-colors">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 flex flex-col justify-between card-hover hover:border-emerald-500/50 group">
               <div>
-                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-4">
-                  <Smartphone className="h-5 w-5" />
+                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                  <Smartphone className="h-5 w-5 animate-float-slow" />
                 </div>
-                <h3 className="text-base font-bold text-white mb-2">Ремонт смартфонів</h3>
+                <h3 className="text-base font-bold text-white mb-2 group-hover:text-emerald-300 transition-colors">Ремонт смартфонів</h3>
                 <ul className="text-xs text-slate-400 space-y-2 mb-6">
                   <li className="flex items-center justify-between">
                     <span>Заміна дисплея</span>
@@ -564,18 +572,18 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               </div>
               <button
                 onClick={onOpenCreateModal}
-                className="w-full py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+                className="w-full py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-emerald-600 text-white transition-all duration-200 active:scale-95"
               >
                 Записатися на ремонт
               </button>
             </div>
 
-            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 flex flex-col justify-between hover:border-slate-700 transition-colors">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 flex flex-col justify-between card-hover hover:border-amber-500/50 group">
               <div>
-                <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4">
-                  <Tablet className="h-5 w-5" />
+                <div className="h-10 w-10 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                  <Tablet className="h-5 w-5 animate-float" />
                 </div>
-                <h3 className="text-base font-bold text-white mb-2">Ремонт планшетів</h3>
+                <h3 className="text-base font-bold text-white mb-2 group-hover:text-amber-300 transition-colors">Ремонт планшетів</h3>
                 <ul className="text-xs text-slate-400 space-y-2 mb-6">
                   <li className="flex items-center justify-between">
                     <span>Заміна сенсорного скла</span>
@@ -597,18 +605,18 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               </div>
               <button
                 onClick={onOpenCreateModal}
-                className="w-full py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+                className="w-full py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-amber-600 text-white transition-all duration-200 active:scale-95"
               >
                 Записатися на ремонт
               </button>
             </div>
 
-            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 flex flex-col justify-between hover:border-slate-700 transition-colors">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 flex flex-col justify-between card-hover hover:border-indigo-500/50 group">
               <div>
-                <div className="h-10 w-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mb-4">
-                  <Monitor className="h-5 w-5" />
+                <div className="h-10 w-10 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                  <Monitor className="h-5 w-5 animate-float-slow" />
                 </div>
-                <h3 className="text-base font-bold text-white mb-2">ПК та Монітори</h3>
+                <h3 className="text-base font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors">ПК та Монітори</h3>
                 <ul className="text-xs text-slate-400 space-y-2 mb-6">
                   <li className="flex items-center justify-between">
                     <span>Діагностика материнської плати</span>
@@ -630,7 +638,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               </div>
               <button
                 onClick={onOpenCreateModal}
-                className="w-full py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-white transition-colors"
+                className="w-full py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-indigo-600 text-white transition-all duration-200 active:scale-95"
               >
                 Записатися на ремонт
               </button>
@@ -657,17 +665,17 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               </p>
 
               <div className="grid grid-cols-3 gap-4 mt-8 pt-6 border-t border-slate-800">
-                <div>
+                <div className="p-3 rounded-xl bg-slate-900/40 border border-slate-800/80 card-hover">
                   <div className="text-2xl font-bold text-white font-mono">8+</div>
-                  <div className="text-xs text-slate-500 mt-1">Років на ринку</div>
+                  <div className="text-xs text-slate-400 mt-1">Років на ринку</div>
                 </div>
-                <div>
+                <div className="p-3 rounded-xl bg-slate-900/40 border border-slate-800/80 card-hover">
                   <div className="text-2xl font-bold text-white font-mono">14 200+</div>
-                  <div className="text-xs text-slate-500 mt-1">Відремонтовано</div>
+                  <div className="text-xs text-slate-400 mt-1">Відремонтовано</div>
                 </div>
-                <div>
+                <div className="p-3 rounded-xl bg-slate-900/40 border border-slate-800/80 card-hover">
                   <div className="text-2xl font-bold text-emerald-400 font-mono">98.6%</div>
-                  <div className="text-xs text-slate-500 mt-1">Успішних робіт</div>
+                  <div className="text-xs text-slate-400 mt-1">Успішних робіт</div>
                 </div>
               </div>
             </div>
