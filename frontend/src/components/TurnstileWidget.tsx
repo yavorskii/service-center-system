@@ -10,6 +10,7 @@ declare global {
           sitekey: string;
           theme?: 'dark' | 'light' | 'auto';
           size?: 'normal' | 'compact' | 'flexible';
+          language?: string;
           callback?: (token: string) => void;
           'error-callback'?: (code: string) => void;
           'expired-callback'?: () => void;
@@ -62,6 +63,7 @@ export const TurnstileWidget: React.FC<TurnstileWidgetProps> = ({
           sitekey: siteKey,
           theme: theme,
           size: 'normal',
+          language: 'uk',
           callback: (token: string) => {
             if (!isMounted) return;
             setIsVerifying(false);
@@ -149,7 +151,7 @@ export const TurnstileWidget: React.FC<TurnstileWidgetProps> = ({
         )}
       </div>
 
-      <div ref={containerRef} className="min-h-[65px] flex items-center justify-center" />
+      <div ref={containerRef} className="w-[300px] h-[65px] max-h-[65px] overflow-hidden flex items-start justify-center rounded-lg" />
 
       {loadError && (
         <div className="mt-2 text-center text-xs">
