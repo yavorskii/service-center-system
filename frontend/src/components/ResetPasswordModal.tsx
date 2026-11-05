@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Lock, Key, Check, AlertCircle, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { X, Lock, Key, Check, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { api } from '../services/api';
 import type { CaptchaData } from '../types';
+import { TurnstileWidget } from './TurnstileWidget';
 
 interface ResetPasswordModalProps {
   isOpen: boolean;
@@ -20,21 +21,20 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [captchaData, setCaptchaData] = useState<CaptchaData | null>(null);
   const [captchaAnswer, setCaptchaAnswer] = useState('');
-  const [loadingCaptcha, setLoadingCaptcha] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
   const loadCaptcha = async () => {
-    setLoadingCaptcha(true);
     try {
       const data = await api.getCaptcha();
       setCaptchaData(data);
       setCaptchaAnswer('');
-    } finally {
-      setLoadingCaptcha(false);
+    } catch {
+      // fallback
     }
   };
 
@@ -43,6 +43,7 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
       setToken(initialToken || '');
       setNewPassword('');
       setConfirmPassword('');
+      setTurnstileToken(null);
       setErrorMessage('');
       setSuccessMessage('');
       loadCaptcha();
@@ -71,6 +72,10 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) return;
+    if (!turnstileToken && (!captchaData || captchaAnswer.trim().length === 0)) {
+      setErrorMessage('Будь ласка, підтвердіть перевірку Cloudflare Turnstile');
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMessage('');
@@ -78,8 +83,8 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
 
     try {
       const msg = await api.resetPassword(token.trim(), newPassword, {
-        captchaToken: captchaData?.token || '',
-        captchaAnswer: captchaAnswer.trim()
+        captchaToken: turnstileToken || captchaData?.token || '',
+        captchaAnswer: turnstileToken ? 'turnstile' : captchaAnswer.trim()
       });
       setSuccessMessage(msg);
       setTimeout(() => {
@@ -231,34 +236,13 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
               </div>
             </div>
 
-            <div className="p-2.5 bg-slate-950/70 border border-slate-800 rounded-xl space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-slate-300">Підтвердження CAPTCHA *</span>
-                <button
-                  type="button"
-                  onClick={loadCaptcha}
-                  disabled={loadingCaptcha}
-                  className="inline-flex items-center gap-1 text-[11px] text-sky-400 hover:text-sky-300"
-                >
-                  <RefreshCw className={`w-3 h-3 ${loadingCaptcha ? 'animate-spin' : ''}`} />
-                  <span>Оновити</span>
-                </button>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <div
-                  className="bg-slate-950 p-1 rounded-lg border border-slate-800 flex items-center justify-center shrink-0 min-w-[150px] h-[48px]"
-                  dangerouslySetInnerHTML={{ __html: captchaData?.svg || '' }}
-                />
-                <input
-                  type="text"
-                  value={captchaAnswer}
-                  onChange={e => setCaptchaAnswer(e.target.value)}
-                  placeholder="5 символів"
-                  maxLength={6}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs text-center font-mono tracking-widest text-white uppercase focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
+            <TurnstileWidget
+              onVerify={(tk) => {
+                setTurnstileToken(tk);
+                setErrorMessage('');
+              }}
+              onExpire={() => setTurnstileToken(null)}
+            />
 
             <button
               type="submit"

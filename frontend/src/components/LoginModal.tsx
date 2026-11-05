@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Lock, AlertCircle, ArrowRight, Eye, EyeOff, RefreshCw, ShieldAlert } from 'lucide-react';
+import { X, Lock, AlertCircle, ArrowRight, Eye, EyeOff, ShieldAlert } from 'lucide-react';
 import { api } from '../services/api';
 import type { AuthUser, CaptchaData } from '../types';
+import { TurnstileWidget } from './TurnstileWidget';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -25,21 +26,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [captchaData, setCaptchaData] = useState<CaptchaData | null>(null);
   const [captchaAnswer, setCaptchaAnswer] = useState('');
-  const [loadingCaptcha, setLoadingCaptcha] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadCaptcha = async () => {
-    setLoadingCaptcha(true);
     try {
       const data = await api.getCaptcha();
       setCaptchaData(data);
       setCaptchaAnswer('');
-    } finally {
-      setLoadingCaptcha(false);
+    } catch {
+      // fallback
     }
   };
 
@@ -47,6 +47,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     if (isOpen) {
       setError(null);
       setGoogleLoading(false);
+      setTurnstileToken(null);
       loadCaptcha();
     }
   }, [isOpen]);
@@ -59,12 +60,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       setError('Введіть логін або email та пароль');
       return;
     }
+    if (!turnstileToken && (!captchaData || !captchaAnswer.trim())) {
+      setError('Будь ласка, підтвердіть перевірку Cloudflare Turnstile');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const user = await api.login(username.trim(), password, {
-        captchaToken: captchaData?.token || '',
-        captchaAnswer: captchaAnswer.trim()
+        captchaToken: turnstileToken || captchaData?.token || '',
+        captchaAnswer: turnstileToken ? 'turnstile' : captchaAnswer.trim()
       });
       if (user.twoFactorRequired) {
         onClose();
@@ -74,10 +79,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       setUsername('');
       setPassword('');
       setCaptchaAnswer('');
+      setTurnstileToken(null);
       onSuccess(user);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Помилка автентифікації');
+      setTurnstileToken(null);
       loadCaptcha();
     } finally {
       setLoading(false);
@@ -225,34 +232,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           </div>
 
-          <div className="p-2.5 bg-[#0B0F19] border border-slate-800 rounded-xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-slate-300">Підтвердження CAPTCHA *</span>
-              <button
-                type="button"
-                onClick={loadCaptcha}
-                disabled={loadingCaptcha}
-                className="inline-flex items-center gap-1 text-[11px] text-sky-400 hover:text-sky-300 disabled:opacity-50"
-              >
-                <RefreshCw className={`w-3 h-3 ${loadingCaptcha ? 'animate-spin' : ''}`} />
-                <span>Оновити</span>
-              </button>
-            </div>
-            <div className="flex items-center gap-2.5">
-              <div
-                className="bg-slate-950 p-1 rounded-lg border border-slate-800 flex items-center justify-center shrink-0 min-w-[150px] h-[48px]"
-                dangerouslySetInnerHTML={{ __html: captchaData?.svg || '<span class="text-[11px] text-slate-500">...</span>' }}
-              />
-              <input
-                type="text"
-                value={captchaAnswer}
-                onChange={e => setCaptchaAnswer(e.target.value)}
-                placeholder="Код із картинки"
-                maxLength={6}
-                className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-center font-mono tracking-widest text-white uppercase focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-          </div>
+          <TurnstileWidget
+            onVerify={(token) => {
+              setTurnstileToken(token);
+              setError(null);
+            }}
+            onExpire={() => setTurnstileToken(null)}
+          />
 
           <button
             type="submit"

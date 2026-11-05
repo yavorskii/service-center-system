@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldCheck, Check, AlertCircle, RefreshCw, Lock, User, Mail, Phone, Eye, EyeOff } from 'lucide-react';
+import { X, ShieldCheck, Check, AlertCircle, Lock, User, Mail, Phone, Eye, EyeOff } from 'lucide-react';
 import { api } from '../services/api';
 import type { AuthUser, CaptchaData } from '../types';
+import { TurnstileWidget } from './TurnstileWidget';
 
 interface RegisterModalProps {
   isOpen: boolean;
@@ -23,9 +24,9 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [captchaAnswer, setCaptchaAnswer] = useState('');
   const [captchaData, setCaptchaData] = useState<CaptchaData | null>(null);
-  const [isLoadingCaptcha, setIsLoadingCaptcha] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -34,6 +35,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       loadCaptcha();
+      setTurnstileToken(null);
       setErrorMessage('');
       setRegisteredEmail(null);
       setGoogleLoading(false);
@@ -41,15 +43,12 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   }, [isOpen]);
 
   const loadCaptcha = async () => {
-    setIsLoadingCaptcha(true);
     try {
       const data = await api.getCaptcha();
       setCaptchaData(data);
       setCaptchaAnswer('');
     } catch {
       setErrorMessage('Не вдалося завантажити CAPTCHA');
-    } finally {
-      setIsLoadingCaptcha(false);
     }
   };
 
@@ -113,8 +112,8 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
       setErrorMessage('Підтвердження пароля не співпадає з введеним паролем');
       return;
     }
-    if (!captchaData || captchaAnswer.trim().length === 0) {
-      setErrorMessage('Введіть 5 символів із зображення CAPTCHA для захисту від ботів');
+    if (!turnstileToken && (!captchaData || captchaAnswer.trim().length === 0)) {
+      setErrorMessage('Будь ласка, підтвердіть перевірку Cloudflare Turnstile');
       return;
     }
 
@@ -128,8 +127,8 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
         email: targetEmail,
         phone: phone.trim() || undefined,
         password,
-        captchaToken: captchaData.token,
-        captchaAnswer: captchaAnswer.trim()
+        captchaToken: turnstileToken || captchaData?.token || '',
+        captchaAnswer: turnstileToken ? 'turnstile' : captchaAnswer.trim()
       });
 
       if (user.token) {
@@ -383,37 +382,13 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
               </div>
             </div>
 
-            <div className="p-3 bg-slate-800/80 border border-slate-700/80 rounded-xl space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-slate-300">
-                  Захист від ботів (CAPTCHA) *
-                </label>
-                <button
-                  type="button"
-                  onClick={loadCaptcha}
-                  disabled={isLoadingCaptcha}
-                  className="flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300 disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isLoadingCaptcha ? 'animate-spin' : ''}`} />
-                  <span>Оновити код</span>
-                </button>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-center gap-3">
-                <div
-                  className="bg-slate-950 p-1.5 rounded-lg border border-slate-700 flex items-center justify-center min-w-[160px] h-[52px]"
-                  dangerouslySetInnerHTML={{ __html: captchaData?.svg || '<span class="text-xs text-slate-500">Завантаження...</span>' }}
-                />
-                <input
-                  type="text"
-                  value={captchaAnswer}
-                  onChange={(e) => setCaptchaAnswer(e.target.value)}
-                  placeholder="Введіть 5 символів"
-                  maxLength={6}
-                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-center font-mono tracking-widest text-white uppercase focus:outline-none focus:border-indigo-500 transition"
-                />
-              </div>
-            </div>
+            <TurnstileWidget
+              onVerify={(token) => {
+                setTurnstileToken(token);
+                setErrorMessage('');
+              }}
+              onExpire={() => setTurnstileToken(null)}
+            />
 
             <button
               type="submit"

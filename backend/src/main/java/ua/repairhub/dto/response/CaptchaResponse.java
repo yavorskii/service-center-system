@@ -10,4 +10,5 @@ import lombok.*;
 public class CaptchaResponse {
     private String captchaToken;
     private String captchaSvg;
+    private String turnstileSiteKey;
 }
