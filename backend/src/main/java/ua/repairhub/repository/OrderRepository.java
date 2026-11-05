@@ -57,4 +57,6 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("SELECT COALESCE(SUM(o.totalCost), 0) FROM Order o")
     BigDecimal calculateTotalRevenue();
+
+    List<Order> findByTechnicianId(Long technicianId);
 }

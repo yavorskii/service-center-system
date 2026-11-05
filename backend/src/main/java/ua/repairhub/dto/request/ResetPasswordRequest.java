@@ -13,4 +13,8 @@ public class ResetPasswordRequest {
 
     @NotBlank(message = "Новий пароль є обов'язковим")
     private String newPassword;
+
+    private String captchaToken;
+    private String captchaAnswer;
+    private Boolean requireCaptcha;
 }

@@ -1,6 +1,5 @@
 package ua.repairhub.dto.request;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
@@ -9,7 +8,8 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ForgotPasswordRequest {
-    @NotBlank(message = "Email є обов'язковим")
-    @Email(message = "Некоректний формат email")
+    @NotBlank(message = "Email або логін є обов'язковим")
     private String email;
+
+    private String twoFactorCode;
 }

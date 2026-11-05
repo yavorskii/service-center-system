@@ -18,9 +18,15 @@ public class UserSecurityProfileResponse {
     private Role role;
     private Boolean emailVerified;
     private Boolean twoFactorEnabled;
+    private String twoFactorMethod;
     private Boolean isLocked;
     private Integer failedLoginAttempts;
     private String authProvider;
+    private Boolean googleConnected;
+    private String googleEmail;
+    private String lastLoginIp;
+    private ZonedDateTime lastLoginAt;
     private Boolean isActive;
     private ZonedDateTime createdAt;
+    private String updatedToken;
 }

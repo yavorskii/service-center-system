@@ -21,3 +21,8 @@ npm-debug.log*
 
 # Logs
 *.log
+
+# Defense plans & videos
+ПЛАН_ЗАХИСТУ_OBS.md
+*.mkv
+*.mp4

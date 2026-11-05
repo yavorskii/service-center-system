@@ -61,6 +61,19 @@ public class User {
     @Column(name = "two_factor_secret", length = 100)
     private String twoFactorSecret;
 
+    @Column(name = "two_factor_method", length = 20)
+    @Builder.Default
+    private String twoFactorMethod = "EMAIL";
+
+    @Column(name = "google_email", length = 120)
+    private String googleEmail;
+
+    @Column(name = "last_login_ip", length = 60)
+    private String lastLoginIp;
+
+    @Column(name = "last_login_at")
+    private ZonedDateTime lastLoginAt;
+
     @Column(name = "failed_login_attempts", nullable = false)
     @Builder.Default
     private Integer failedLoginAttempts = 0;

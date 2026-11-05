@@ -12,6 +12,7 @@ import ua.repairhub.dto.request.*;
 import ua.repairhub.dto.response.AuthResponse;
 import ua.repairhub.dto.response.CaptchaResponse;
 import ua.repairhub.dto.response.MockEmailResponse;
+import ua.repairhub.dto.response.SupportTicketResponse;
 import ua.repairhub.service.AuthService;
 import ua.repairhub.service.CaptchaService;
 import ua.repairhub.service.MockEmailService;
@@ -22,7 +23,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
-@Tag(name = "Authentication & Security", description = "Безпечне керування обліковими записами, RBAC, 2FA, CAPTCHA та аудит")
+@Tag(name = "Authentication & Security", description = "Безпечне керування обліковими записами, RBAC, 2FA, CAPTCHA, сеанси та аудит")
 public class AuthController {
 
     private final AuthService authService;
@@ -30,13 +31,23 @@ public class AuthController {
     private final MockEmailService mockEmailService;
 
     @PostMapping("/login")
-    @Operation(summary = "Вхід у систему", description = "Автентифікація з перевіркою Brute Force, блокування та 2FA")
+    @Operation(summary = "Вхід у систему", description = "Автентифікація з перевіркою Brute Force, CAPTCHA, блокування та 2FA")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
         return ResponseEntity.ok(authService.login(request, httpRequest));
     }
 
+    @PostMapping("/logout")
+    @Operation(summary = "Вихід із системи", description = "Завершення поточного серверного сеансу та запис у журнал аудиту")
+    public ResponseEntity<Map<String, String>> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            HttpServletRequest httpRequest) {
+        String token = (authHeader != null && authHeader.startsWith("Bearer ")) ? authHeader.substring(7) : null;
+        authService.logout(token, httpRequest);
+        return ResponseEntity.ok(Map.of("message", "Сеанс успішно завершено"));
+    }
+
     @PostMapping("/2fa/verify")
-    @Operation(summary = "Підтвердження 2FA коду", description = "Перевірка 6-значного OTP-коду для завершення входу")
+    @Operation(summary = "Підтвердження 2FA коду", description = "Перевірка 6-значного TOTP або OTP-коду для завершення входу")
     public ResponseEntity<AuthResponse> verifyTwoFactor(@Valid @RequestBody TwoFactorVerifyRequest request, HttpServletRequest httpRequest) {
         return ResponseEntity.ok(authService.verifyTwoFactor(request, httpRequest));
     }
@@ -55,23 +66,31 @@ public class AuthController {
 
     @PostMapping("/activate")
     @Operation(summary = "Активація акаунта", description = "Підтвердження email через одноразовий токен")
-    public ResponseEntity<Map<String, String>> activateAccount(@Valid @RequestBody ActivateAccountRequest request) {
-        String msg = authService.activateAccount(request);
+    public ResponseEntity<Map<String, String>> activateAccount(@Valid @RequestBody ActivateAccountRequest request, HttpServletRequest httpRequest) {
+        String msg = authService.activateAccount(request, httpRequest);
         return ResponseEntity.ok(Map.of("message", msg));
     }
 
     @PostMapping("/forgot-password")
-    @Operation(summary = "Запит на відновлення пароля", description = "Генерація токена та відправка листа на email")
-    public ResponseEntity<Map<String, String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        String msg = authService.forgotPassword(request);
+    @Operation(summary = "Запит на відновлення пароля", description = "Генерація токена з перевіркою 2FA та відправка листа на email")
+    public ResponseEntity<Map<String, String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request, HttpServletRequest httpRequest) {
+        String msg = authService.forgotPassword(request, httpRequest);
         return ResponseEntity.ok(Map.of("message", msg));
     }
 
     @PostMapping("/reset-password")
-    @Operation(summary = "Встановлення нового пароля", description = "Зміна пароля за токеном із перевіркою політики")
-    public ResponseEntity<Map<String, String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
-        String msg = authService.resetPassword(request);
+    @Operation(summary = "Встановлення нового пароля", description = "Зміна пароля за токеном із перевіркою політики та завершенням активних сесій")
+    public ResponseEntity<Map<String, String>> resetPassword(@Valid @RequestBody ResetPasswordRequest request, HttpServletRequest httpRequest) {
+        String msg = authService.resetPassword(request, httpRequest);
         return ResponseEntity.ok(Map.of("message", msg));
+    }
+
+    @PostMapping("/support")
+    @Operation(summary = "Звернення у службу безпеки та підтримки", description = "Повідомлення про підозрілу активність або заблокований акаунт")
+    public ResponseEntity<SupportTicketResponse> createSupportTicket(
+            @Valid @RequestBody CreateSupportTicketRequest request,
+            HttpServletRequest httpRequest) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.createSupportTicket(request, httpRequest));
     }
 
     @PostMapping("/oauth")
@@ -87,19 +106,19 @@ public class AuthController {
     }
 
     @PostMapping("/google/callback")
-    @Operation(summary = "Обмін коду Google OAuth 2.0 на JWT", description = "Перевіряє одноразовий код у Google та автентифікує реальний обліковий запис")
+    @Operation(summary = "Обмін коду Google OAuth 2.0 на JWT", description = "Перевіряє одноразовий код у Google з урахуванням прив'язки та 2FA")
     public ResponseEntity<AuthResponse> googleCallback(@Valid @RequestBody GoogleCodeRequest request, HttpServletRequest httpRequest) {
         return ResponseEntity.ok(authService.authenticateWithGoogleCode(request, httpRequest));
     }
 
     @GetMapping("/emails")
-    @Operation(summary = "Отримання списку листів (Mock Mailbox)", description = "Перегляд надісланих системних листів для відеозвіту")
+    @Operation(summary = "Отримання списку листів", description = "Перегляд надісланих системних листів")
     public ResponseEntity<List<MockEmailResponse>> getSentEmails() {
         return ResponseEntity.ok(mockEmailService.getAllEmails());
     }
 
     @DeleteMapping("/emails")
-    @Operation(summary = "Очищення поштової скриньки")
+    @Operation(summary = "Очищення кешу листів")
     public ResponseEntity<Void> clearEmails() {
         mockEmailService.clear();
         return ResponseEntity.noContent().build();

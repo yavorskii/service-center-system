@@ -8,6 +8,8 @@ import java.util.List;
 
 @Repository
 public interface LoginAuditRepository extends JpaRepository<LoginAudit, Long> {
+    List<LoginAudit> findTop200ByOrderByAttemptTimeDesc();
     List<LoginAudit> findTop100ByOrderByAttemptTimeDesc();
+    List<LoginAudit> findTop30ByUsernameIgnoreCaseOrderByAttemptTimeDesc(String username);
     List<LoginAudit> findByUsernameOrderByAttemptTimeDesc(String username);
 }

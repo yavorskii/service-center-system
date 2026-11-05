@@ -19,4 +19,7 @@ public class LoginRequest {
     private String password;
 
     private String twoFactorCode;
+    private String captchaToken;
+    private String captchaAnswer;
+    private Boolean requireCaptcha;
 }

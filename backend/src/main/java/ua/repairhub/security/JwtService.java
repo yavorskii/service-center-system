@@ -28,32 +28,46 @@ public class JwtService {
         return extractClaim(token, Claims::getSubject);
     }
 
+    public String extractSessionId(String token) {
+        return extractClaim(token, Claims::getId);
+    }
+
+    public long getExpirationMs() {
+        return jwtExpiration;
+    }
+
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         final Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
     }
 
     public String generateToken(User user) {
+        return generateToken(user, null);
+    }
+
+    public String generateToken(User user, String sessionToken) {
         Map<String, Object> extraClaims = new HashMap<>();
         extraClaims.put("userId", user.getId());
         extraClaims.put("fullName", user.getFullName());
         extraClaims.put("role", user.getRole().name());
-        return generateToken(extraClaims, user.getUsername());
+        return generateToken(extraClaims, user.getUsername(), sessionToken);
     }
 
-    public String generateToken(Map<String, Object> extraClaims, String username) {
-        return Jwts.builder()
+    public String generateToken(Map<String, Object> extraClaims, String username, String sessionToken) {
+        var builder = Jwts.builder()
                 .claims(extraClaims)
                 .subject(username)
                 .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + jwtExpiration))
-                .signWith(getSignInKey())
-                .compact();
+                .expiration(new Date(System.currentTimeMillis() + jwtExpiration));
+        if (sessionToken != null && !sessionToken.isBlank()) {
+            builder.id(sessionToken);
+        }
+        return builder.signWith(getSignInKey()).compact();
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+        return (username.equalsIgnoreCase(userDetails.getUsername())) && !isTokenExpired(token);
     }
 
     private boolean isTokenExpired(String token) {

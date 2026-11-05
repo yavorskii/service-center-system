@@ -10,9 +10,14 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import ua.repairhub.dto.response.MockEmailResponse;
+import ua.repairhub.dto.response.SentEmailLogResponse;
+import ua.repairhub.model.SentEmailLog;
+import ua.repairhub.repository.SentEmailLogRepository;
 
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -24,7 +29,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @RequiredArgsConstructor
 public class MockEmailService {
 
+    private static final DateTimeFormatter UTC_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss 'UTC'");
+
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
+    private final SentEmailLogRepository sentEmailLogRepository;
     private final List<MockEmailResponse> mailbox = new CopyOnWriteArrayList<>();
 
     @Value("${spring.mail.username:}")
@@ -36,7 +44,7 @@ public class MockEmailService {
     public void sendActivationEmail(String toEmail, String username, String token) {
         String actionUrl = "/activate?token=" + token;
         String fullUrl = frontendUrl + actionUrl;
-        String subject = "Підтвердження електронної пошти — RepairHub";
+        String subject = "Активація облікового запису — RepairHub";
 
         MockEmailResponse email = MockEmailResponse.builder()
                 .id(UUID.randomUUID().toString())
@@ -55,11 +63,11 @@ public class MockEmailService {
                 "Підтвердження облікового запису",
                 "Вітаємо, <strong>" + escapeHtml(username) + "</strong>!",
                 "Дякуємо за реєстрацію в сервісному центрі <strong>RepairHub</strong>. Щоб активувати ваш обліковий запис та отримати доступ до особистого кабінету, натисніть кнопку нижче:",
-                "Підтвердити електронну пошту",
+                "Активувати обліковий запис",
                 fullUrl,
-                "Посилання одноразове та дійсне протягом 24 годин. Якщо ви не створювали обліковий запис, просто проігноруйте цей лист."
+                "Одноразове посилання дійсне протягом 24 годин. Якщо ви не створювали обліковий запис, просто проігноруйте цей лист."
         );
-        dispatchRealEmailAsync(toEmail, subject, html);
+        dispatchEmail(toEmail, username, subject, "ACTIVATION", html);
     }
 
     public void sendPasswordResetEmail(String toEmail, String username, String token) {
@@ -83,12 +91,12 @@ public class MockEmailService {
         String html = buildEmailTemplate(
                 "Запит на відновлення пароля",
                 "Вітаємо, <strong>" + escapeHtml(username) + "</strong>!",
-                "Ми отримали запит на скидання пароля для вашого облікового запису <strong>RepairHub</strong>. Натисніть кнопку нижче, щоб встановити новий надійний пароль:",
+                "Ми отримали запит на скидання пароля для вашого облікового запису <strong>RepairHub</strong>. Натисніть кнопку нижче, щоб встановити новий надійний пароль (після зміни пароля всі попередні сеанси буде автоматично завершено):",
                 "Встановити новий пароль",
                 fullUrl,
                 "Одноразове посилання дійсне протягом 15 хвилин. Якщо ви не надсилали цей запит, ваш поточний пароль залишається захищеним."
         );
-        dispatchRealEmailAsync(toEmail, subject, html);
+        dispatchEmail(toEmail, username, subject, "PASSWORD_RESET", html);
     }
 
     public void sendTwoFactorOtpEmail(String toEmail, String username, String otpCode) {
@@ -120,62 +128,125 @@ public class MockEmailService {
                 </div>
                 """.formatted(escapeHtml(username), escapeHtml(otpCode));
 
-        dispatchRealEmailAsync(toEmail, subject, html);
+        dispatchEmail(toEmail, username, subject, "TWO_FACTOR_OTP", html);
     }
 
     public void sendAccountLockedEmail(String toEmail, String username, String ipAddress) {
-        String subject = "Попередження безпеки: акаунт тимчасово заблоковано — RepairHub";
+        String subject = "Попередження про спроби входу до RepairHub";
+        String supportUrl = frontendUrl + "/support?email=" + escapeHtml(toEmail);
+        String utcTime = ZonedDateTime.now(ZoneOffset.UTC).format(UTC_FORMATTER);
 
         MockEmailResponse email = MockEmailResponse.builder()
                 .id(UUID.randomUUID().toString())
                 .toEmail(toEmail)
                 .subject(subject)
-                .body("Зафіксовано 5 невдалих спроб входу в акаунт " + username + " з IP " + ipAddress + ". Обліковий запис заблоковано на 15 хвилин.")
+                .body("Зафіксовано 5 невдалих спроб входу в акаунт " + username + " (" + utcTime + ", IP: " + ipAddress + "). Акаунт тимчасово заблоковано на 15 хвилин. Підтримка: " + supportUrl)
                 .token("")
-                .type("SECURITY_ALERT")
+                .type("BRUTE_FORCE_ALERT")
+                .actionUrl("/support")
+                .createdAt(ZonedDateTime.now())
+                .build();
+
+        mailbox.add(0, email);
+
+        String detailsText = "Хтось п'ять разів поспіль ввів неправильний пароль до вашого облікового запису. З міркувань безпеки вхід тимчасово обмежено на <strong>15 хвилин</strong>.<br/><br/>"
+                + "• <strong>Час інциденту:</strong> <code>" + utcTime + "</code><br/>"
+                + "• <strong>IP-адреса з'єднання:</strong> <code>" + escapeHtml(ipAddress) + "</code>";
+
+        String html = buildEmailTemplate(
+                "Спрацював захист Brute Force",
+                "Увага, <strong>" + escapeHtml(username) + "</strong>!",
+                detailsText,
+                "Звернутися у службу безпеки",
+                supportUrl,
+                "Якщо це були не ви, негайно створіть звернення до адміністратора за кнопкою вище, щоб повідомити про підозрілу активність або достроково розблокувати акаунт."
+        );
+        dispatchEmail(toEmail, username, subject, "BRUTE_FORCE_ALERT", html);
+    }
+
+    public void sendSupportReplyEmail(String toEmail, String username, Long ticketId, String ticketSubject, String replyMessage) {
+        String subject = "Відповідь служби підтримки RepairHub щодо звернення #" + ticketId;
+
+        MockEmailResponse email = MockEmailResponse.builder()
+                .id(UUID.randomUUID().toString())
+                .toEmail(toEmail)
+                .subject(subject)
+                .body(replyMessage)
+                .token("")
+                .type("SUPPORT_REPLY")
                 .actionUrl("")
                 .createdAt(ZonedDateTime.now())
                 .build();
 
         mailbox.add(0, email);
 
+        String displayUser = (username != null && !username.isBlank()) ? username : toEmail;
+        String mainText = "Адміністратор безпеки розглянув ваше звернення <strong>#" + ticketId + " («" + escapeHtml(ticketSubject) + "»)</strong> та залишив офіційну відповідь:<br/><br/>"
+                + "<div style=\"background-color:#0f172a;border-left:3px solid #6366f1;padding:14px 16px;border-radius:8px;color:#f8fafc;\">"
+                + escapeHtml(replyMessage).replace("\n", "<br/>")
+                + "</div>";
+
         String html = buildEmailTemplate(
-                "Спрацював захист від підбору пароля",
-                "Увага, <strong>" + escapeHtml(username) + "</strong>!",
-                "Система безпеки <strong>RepairHub</strong> зафіксувала 5 послідовних невдалих спроб входу до вашого облікового запису (IP-адреса: <code>" + escapeHtml(ipAddress) + "</code>). З метою захисту акаунт тимчасово заблоковано на <strong>15 хвилин</strong>.",
-                "Відновити пароль",
+                "Служба безпеки та підтримки",
+                "Вітаємо, <strong>" + escapeHtml(displayUser) + "</strong>!",
+                mainText,
+                "Відкрити RepairHub",
                 frontendUrl,
-                "Якщо це були не ви, рекомендуємо змінити пароль після розблокування або скористатися функцією скидання пароля."
+                "Дякуємо за звернення до центру безпеки сервісного центру RepairHub."
         );
-        dispatchRealEmailAsync(toEmail, subject, html);
+        dispatchEmail(toEmail, username, subject, "SUPPORT_REPLY", html);
     }
 
     public List<MockEmailResponse> getAllEmails() {
         return new ArrayList<>(mailbox);
     }
 
+    public List<SentEmailLogResponse> getSentEmailLogs() {
+        return sentEmailLogRepository.findTop200ByOrderBySentAtDesc().stream()
+                .map(item -> SentEmailLogResponse.builder()
+                        .id(item.getId())
+                        .recipientEmail(item.getRecipientEmail())
+                        .username(item.getUsername())
+                        .subject(item.getSubject())
+                        .emailType(item.getEmailType())
+                        .deliveryStatus(item.getDeliveryStatus())
+                        .sentAt(item.getSentAt())
+                        .build())
+                .toList();
+    }
+
     public void clear() {
         mailbox.clear();
     }
 
-    private void dispatchRealEmailAsync(String toEmail, String subject, String htmlBody) {
+    private void dispatchEmail(String toEmail, String username, String subject, String emailType, String htmlBody) {
         if (toEmail == null || toEmail.isBlank()) {
             return;
         }
         String recipient = toEmail.trim();
-        if (recipient.endsWith("@repairhub.ua") || recipient.endsWith("@example.com")) {
-            log.info("Локальний тестовий лист записано в журнал для {}: {}", recipient, subject);
-            return;
-        }
-        if (mailUsername == null || mailUsername.isBlank()) {
-            log.warn("MAIL_USERNAME не задано, реальна відправка листа до {} пропущена", recipient);
-            return;
-        }
+        boolean isLocalTestDomain = recipient.endsWith("@repairhub.ua") || recipient.endsWith("@example.com");
         JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
-        if (mailSender == null) {
+        boolean canSendSmtp = !isLocalTestDomain && mailUsername != null && !mailUsername.isBlank() && mailSender != null;
+
+        Long logId = null;
+        try {
+            SentEmailLog saved = sentEmailLogRepository.save(SentEmailLog.builder()
+                    .recipientEmail(recipient)
+                    .username(username)
+                    .subject(subject)
+                    .emailType(emailType)
+                    .deliveryStatus(canSendSmtp ? "SENT_SMTP" : "LOCAL_LOG")
+                    .build());
+            logId = saved.getId();
+        } catch (Exception ignored) {
+        }
+
+        if (!canSendSmtp) {
+            log.info("Лист записано в журнал [{}]: {} -> {}", emailType, recipient, subject);
             return;
         }
 
+        final Long targetLogId = logId;
         CompletableFuture.runAsync(() -> {
             try {
                 MimeMessage message = mailSender.createMimeMessage();
@@ -188,6 +259,12 @@ public class MockEmailService {
                 log.info("Реальний лист успішно надіслано через SMTP на {}: {}", recipient, subject);
             } catch (Exception e) {
                 log.error("Помилка відправки SMTP листа на {}: {}", recipient, e.getMessage());
+                if (targetLogId != null) {
+                    sentEmailLogRepository.findById(targetLogId).ifPresent(entry -> {
+                        entry.setDeliveryStatus("FAILED_SMTP");
+                        sentEmailLogRepository.save(entry);
+                    });
+                }
             }
         });
     }
@@ -199,7 +276,7 @@ public class MockEmailService {
                     <div style="display: inline-block; font-size: 11px; font-weight: 600; color: #818cf8; background-color: rgba(99, 102, 241, 0.14); padding: 4px 10px; border-radius: 999px; margin-bottom: 14px;">%s</div>
                     <div style="font-size: 20px; font-weight: 700; color: #ffffff; margin-bottom: 14px;">RepairHub</div>
                     <p style="font-size: 15px; color: #f8fafc; margin: 0 0 12px;">%s</p>
-                    <p style="font-size: 14px; line-height: 1.6; color: #cbd5e1; margin: 0 0 24px;">%s</p>
+                    <div style="font-size: 14px; line-height: 1.6; color: #cbd5e1; margin: 0 0 24px;">%s</div>
                     <div style="margin: 26px 0;">
                       <a href="%s" style="display: inline-block; background-color: #4f46e5; color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; padding: 12px 24px; border-radius: 10px;">%s</a>
                     </div>

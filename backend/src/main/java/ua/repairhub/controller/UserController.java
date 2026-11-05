@@ -13,6 +13,7 @@ import ua.repairhub.model.Role;
 import ua.repairhub.repository.UserRepository;
 
 import java.time.ZonedDateTime;
+import java.util.Comparator;
 import java.util.List;
 
 @RestController
@@ -29,6 +30,7 @@ public class UserController {
     public ResponseEntity<List<UserResponse>> getAllUsers() {
         ZonedDateTime now = ZonedDateTime.now();
         List<UserResponse> list = userRepository.findAll().stream()
+                .sorted(Comparator.comparing(u -> u.getId() != null ? u.getId() : 0L))
                 .map(u -> {
                     boolean effectivelyLocked = Boolean.TRUE.equals(u.getIsLocked())
                             && (u.getLockedUntil() == null || now.isBefore(u.getLockedUntil()));
@@ -41,9 +43,14 @@ public class UserController {
                             .email(u.getEmail())
                             .emailVerified(u.getEmailVerified())
                             .isLocked(effectivelyLocked)
+                            .lockedUntil(effectivelyLocked ? u.getLockedUntil() : null)
                             .failedLoginAttempts(effectivelyLocked || Boolean.FALSE.equals(u.getIsLocked()) ? u.getFailedLoginAttempts() : 0)
                             .twoFactorEnabled(u.getTwoFactorEnabled())
+                            .twoFactorMethod(u.getTwoFactorMethod())
                             .authProvider(u.getAuthProvider())
+                            .googleEmail(u.getGoogleEmail())
+                            .lastLoginIp(u.getLastLoginIp())
+                            .lastLoginAt(u.getLastLoginAt())
                             .isActive(u.getIsActive())
                             .createdAt(u.getCreatedAt())
                             .build();

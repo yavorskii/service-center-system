@@ -13,12 +13,15 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 import ua.repairhub.dto.request.*;
 import ua.repairhub.model.Role;
+import ua.repairhub.service.TotpService;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -33,6 +36,9 @@ class AuthControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private TotpService totpService;
 
     private String[] fetchCaptcha() throws Exception {
         MvcResult res = mockMvc.perform(get("/api/v1/auth/captcha"))
@@ -251,5 +257,160 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").isString())
                 .andExpect(jsonPath("$.role").value("ROLE_USER"));
+    }
+
+    @Test
+    @DisplayName("Активні сеанси, правило першого сеансу, TOTP QR 2FA, підтримка та видалення акаунта")
+    void sessionsTotpSupportAndAdminDelete_Success() throws Exception {
+        String[] captcha = fetchCaptcha();
+        RegisterRequest regReq = RegisterRequest.builder()
+                .username("totp_user")
+                .password("Strong#2026")
+                .fullName("Тест Сеансів")
+                .email("totp_user@repairhub.ua")
+                .captchaToken(captcha[0])
+                .captchaAnswer(captcha[1])
+                .build();
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .header("X-Forwarded-For", "198.51.100.10")
+                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(regReq)))
+                .andExpect(status().isCreated());
+
+        JsonNode emails = objectMapper.readTree(
+                mockMvc.perform(get("/api/v1/auth/emails")).andReturn().getResponse().getContentAsString());
+        String activationToken = emails.get(0).get("token").asText();
+
+        mockMvc.perform(post("/api/v1/auth/activate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ActivateAccountRequest(activationToken))))
+                .andExpect(status().isOk());
+
+        MvcResult session1Res = mockMvc.perform(post("/api/v1/auth/login")
+                        .header("X-Forwarded-For", "198.51.100.10")
+                        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131.0")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                LoginRequest.builder().username("totp_user").password("Strong#2026").build())))
+                .andExpect(status().isOk())
+                .andReturn();
+        String jwtPrimary = objectMapper.readTree(session1Res.getResponse().getContentAsString()).get("token").asText();
+
+        MvcResult session2Res = mockMvc.perform(post("/api/v1/auth/login")
+                        .header("X-Forwarded-For", "203.0.113.55")
+                        .header("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                LoginRequest.builder().username("totp_user").password("Strong#2026").build())))
+                .andExpect(status().isOk())
+                .andReturn();
+        String jwtSecondary = objectMapper.readTree(session2Res.getResponse().getContentAsString()).get("token").asText();
+
+        mockMvc.perform(get("/api/v1/profile/sessions").header("Authorization", "Bearer " + jwtPrimary))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].primary").value(true))
+                .andExpect(jsonPath("$[0].current").value(true))
+                .andExpect(jsonPath("$[0].ipAddress").value("198.51.100.10"))
+                .andExpect(jsonPath("$[1].ipAddress").value("203.0.113.55"));
+
+        mockMvc.perform(post("/api/v1/profile/sessions/terminate-others")
+                        .header("Authorization", "Bearer " + jwtSecondary))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/v1/profile/sessions/terminate-others")
+                        .header("Authorization", "Bearer " + jwtPrimary))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.terminatedCount").value(1));
+
+        mockMvc.perform(get("/api/v1/profile").header("Authorization", "Bearer " + jwtSecondary))
+                .andExpect(status().isForbidden());
+
+        MvcResult totpSetupRes = mockMvc.perform(post("/api/v1/profile/2fa/totp/setup")
+                        .header("Authorization", "Bearer " + jwtPrimary))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.secret").isString())
+                .andExpect(jsonPath("$.qrCodeSvg").isString())
+                .andReturn();
+        String secret = objectMapper.readTree(totpSetupRes.getResponse().getContentAsString()).get("secret").asText();
+
+        mockMvc.perform(post("/api/v1/profile/2fa/totp/enable")
+                        .header("Authorization", "Bearer " + jwtPrimary)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TotpEnableRequest(secret, "000000"))))
+                .andExpect(status().isBadRequest());
+
+        String validTotp = totpService.getCurrentCode(secret);
+        mockMvc.perform(post("/api/v1/profile/2fa/totp/enable")
+                        .header("Authorization", "Bearer " + jwtPrimary)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new TotpEnableRequest(secret, validTotp))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.twoFactorEnabled").value(true))
+                .andExpect(jsonPath("$.twoFactorMethod").value("TOTP"));
+
+        mockMvc.perform(post("/api/v1/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"totp_user@repairhub.ua\"}"))
+                .andExpect(status().isBadRequest());
+
+        MvcResult ticketRes = mockMvc.perform(post("/api/v1/auth/support")
+                        .header("X-Forwarded-For", "198.51.100.10")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(CreateSupportTicketRequest.builder()
+                                .email("totp_user@repairhub.ua")
+                                .category("SUSPICIOUS_ACTIVITY")
+                                .subject("Підозрілі спроби входу")
+                                .description("Хтось намагається підібрати пароль!")
+                                .build())))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andReturn();
+        long ticketId = objectMapper.readTree(ticketRes.getResponse().getContentAsString()).get("id").asLong();
+
+        MvcResult adminLoginRes = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                LoginRequest.builder().username("admin_oleg").password("admin123").build())))
+                .andExpect(status().isOk())
+                .andReturn();
+        String adminJwt = objectMapper.readTree(adminLoginRes.getResponse().getContentAsString()).get("token").asText();
+
+        mockMvc.perform(patch("/api/v1/security/support-tickets/" + ticketId)
+                        .header("Authorization", "Bearer " + adminJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(AdminTicketUpdateRequest.builder()
+                                .status("RESOLVED")
+                                .adminNote("Перевірено IP")
+                                .replyMessage("Акаунт перевірено та захищено!")
+                                .build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESOLVED"))
+                .andExpect(jsonPath("$.adminReply").value("Акаунт перевірено та захищено!"));
+
+        MvcResult profileRes = mockMvc.perform(get("/api/v1/profile").header("Authorization", "Bearer " + jwtPrimary))
+                .andExpect(status().isOk())
+                .andReturn();
+        long targetUserId = objectMapper.readTree(profileRes.getResponse().getContentAsString()).get("id").asLong();
+
+        mockMvc.perform(delete("/api/v1/security/users/" + targetUserId)
+                        .header("Authorization", "Bearer " + adminJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new DeleteUserConfirmRequest("wrong@mail.com", "ВИДАЛИТИ"))))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(delete("/api/v1/security/users/" + targetUserId)
+                        .header("Authorization", "Bearer " + adminJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new DeleteUserConfirmRequest("totp_user@repairhub.ua", "ВИДАЛИТИ"))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                LoginRequest.builder().username("totp_user").password("Strong#2026").build())))
+                .andExpect(status().isUnauthorized());
     }
 }
