@@ -80,6 +80,18 @@ public class AuthController {
         return ResponseEntity.ok(authService.oauthLogin(request, httpRequest));
     }
 
+    @GetMapping("/google/url")
+    @Operation(summary = "URL авторизації Google OAuth 2.0", description = "Повертає офіційний URL переходу на Google Account Chooser")
+    public ResponseEntity<Map<String, String>> getGoogleAuthUrl(@RequestParam(required = false) String redirectUri) {
+        return ResponseEntity.ok(Map.of("url", authService.getGoogleAuthorizationUrl(redirectUri)));
+    }
+
+    @PostMapping("/google/callback")
+    @Operation(summary = "Обмін коду Google OAuth 2.0 на JWT", description = "Перевіряє одноразовий код у Google та автентифікує реальний обліковий запис")
+    public ResponseEntity<AuthResponse> googleCallback(@Valid @RequestBody GoogleCodeRequest request, HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(authService.authenticateWithGoogleCode(request, httpRequest));
+    }
+
     @GetMapping("/emails")
     @Operation(summary = "Отримання списку листів (Mock Mailbox)", description = "Перегляд надісланих системних листів для відеозвіту")
     public ResponseEntity<List<MockEmailResponse>> getSentEmails() {

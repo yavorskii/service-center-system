@@ -35,18 +35,20 @@ public class AuthService {
     private final CaptchaService captchaService;
     private final TwoFactorAuthService twoFactorAuthService;
     private final MockEmailService mockEmailService;
+    private final GoogleOAuthService googleOAuthService;
 
     public AuthResponse login(LoginRequest request, HttpServletRequest httpRequest) {
         String ip = extractClientIp(httpRequest);
-        String username = request.getUsername().trim();
+        String identifier = request.getUsername().trim();
 
-        User user = userRepository.findByUsername(username)
-                .orElse(null);
+        User user = findUserByIdentifier(identifier);
 
         if (user == null) {
-            logAudit(username, ip, "FAILED_BAD_USERNAME", "Користувача не знайдено");
-            throw new BadCredentialsException("Невірне ім'я користувача або пароль");
+            logAudit(identifier, ip, "FAILED_BAD_USERNAME", "Користувача не знайдено");
+            throw new BadCredentialsException("Невірний логін/email або пароль");
         }
+
+        String username = user.getUsername();
 
         if (Boolean.FALSE.equals(user.getIsActive())) {
             logAudit(username, ip, "ACCOUNT_LOCKED", "Спроба входу в деактивований акаунт");
@@ -74,40 +76,43 @@ public class AuthService {
                 user.setLockedUntil(ZonedDateTime.now().plusMinutes(15));
                 userRepository.save(user);
                 logAudit(username, ip, "ACCOUNT_LOCKED", "Акаунт заблоковано на 15 хв після 5 невдалих спроб");
+                if (user.getEmail() != null && !user.getEmail().isBlank()) {
+                    mockEmailService.sendAccountLockedEmail(user.getEmail(), username, ip);
+                }
                 throw new AccountLockedException("Обліковий запис тимчасово заблоковано на 15 хв через 5 невдалих спроб входу!");
             }
 
             userRepository.save(user);
             logAudit(username, ip, "FAILED_BAD_PASSWORD", "Невдала спроба " + attempts + " з 5");
-            throw new BadCredentialsException("Невірне ім'я користувача або пароль. Залишилося спроб: " + (5 - attempts));
+            throw new BadCredentialsException("Невірний логін/email або пароль. Залишилося спроб: " + (5 - attempts));
         }
 
         if (Boolean.FALSE.equals(user.getEmailVerified()) && user.getRole() == Role.ROLE_USER) {
             logAudit(username, ip, "ACTIVATION_REQUIRED", "Акаунт очікує підтвердження email");
-            throw new BadRequestException("Обліковий запис не активовано. Будь ласка, підтвердіть вашу електронну пошту за посиланням у листі");
+            throw new BadRequestException("Обліковий запис ще не активовано. Перевірте вашу електронну пошту та перейдіть за посиланням у листі підтвердження");
         }
 
         if (Boolean.TRUE.equals(user.getTwoFactorEnabled())) {
             if (request.getTwoFactorCode() == null || request.getTwoFactorCode().isBlank()) {
-                TwoFactorAuthService.TwoFactorChallenge challenge = twoFactorAuthService.generateChallenge(user.getUsername());
+                TwoFactorAuthService.TwoFactorChallenge challenge = twoFactorAuthService.generateChallenge(username);
                 mockEmailService.sendTwoFactorOtpEmail(
                         user.getEmail() != null ? user.getEmail() : "user@repairhub.ua",
-                        user.getUsername(),
+                        username,
                         challenge.code()
                 );
-                logAudit(username, ip, "TWO_FACTOR_REQUIRED", "Надіслано 6-значний OTP код 2FA");
+                logAudit(username, ip, "TWO_FACTOR_REQUIRED", "Надіслано 6-значний OTP код 2FA на пошту");
                 return AuthResponse.builder()
-                        .username(user.getUsername())
+                        .username(username)
                         .fullName(user.getFullName())
                         .role(user.getRole())
                         .email(user.getEmail())
                         .requiresTwoFactor(true)
                         .tempToken(challenge.tempToken())
-                        .message("Надіслано 6-значний код 2FA. Введіть його для завершення входу")
+                        .message("На вашу електронну пошту надіслано 6-значний код підтвердження")
                         .build();
             }
 
-            boolean isOtpValid = twoFactorAuthService.verifyOtp(user.getUsername(), request.getTwoFactorCode());
+            boolean isOtpValid = twoFactorAuthService.verifyOtp(username, request.getTwoFactorCode());
             if (!isOtpValid) {
                 logAudit(username, ip, "FAILED_BAD_2FA", "Невірний код 2FA");
                 throw new BadRequestException("Невірний або прострочений код 2FA");
@@ -126,7 +131,7 @@ public class AuthService {
                 .token(token)
                 .tokenType("Bearer")
                 .id(user.getId())
-                .username(user.getUsername())
+                .username(username)
                 .fullName(user.getFullName())
                 .role(user.getRole())
                 .email(user.getEmail())
@@ -138,10 +143,11 @@ public class AuthService {
 
     public AuthResponse verifyTwoFactor(TwoFactorVerifyRequest request, HttpServletRequest httpRequest) {
         String ip = extractClientIp(httpRequest);
-        String username = request.getUsername().trim();
-
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("Користувача не знайдено"));
+        User user = findUserByIdentifier(request.getUsername());
+        if (user == null) {
+            throw new ResourceNotFoundException("Користувача не знайдено");
+        }
+        String username = user.getUsername();
 
         if (Boolean.TRUE.equals(user.getIsLocked()) && (user.getLockedUntil() == null || ZonedDateTime.now().isBefore(user.getLockedUntil()))) {
             logAudit(username, ip, "ACCOUNT_LOCKED", "Спроба 2FA в заблокований акаунт");
@@ -166,7 +172,7 @@ public class AuthService {
                 .token(token)
                 .tokenType("Bearer")
                 .id(user.getId())
-                .username(user.getUsername())
+                .username(username)
                 .fullName(user.getFullName())
                 .role(user.getRole())
                 .email(user.getEmail())
@@ -178,35 +184,36 @@ public class AuthService {
 
     public AuthResponse register(RegisterRequest request, HttpServletRequest httpRequest) {
         String ip = extractClientIp(httpRequest);
+        String username = request.getUsername().trim();
 
         if (request.getCaptchaToken() == null || request.getCaptchaToken().isBlank()
                 || !captchaService.validate(request.getCaptchaToken(), request.getCaptchaAnswer())) {
-            logAudit(request.getUsername(), ip, "FAILED_CAPTCHA", "Невірний або відсутній код CAPTCHA");
+            logAudit(username, ip, "FAILED_CAPTCHA", "Невірний або відсутній код CAPTCHA");
             throw new BadRequestException("Невірний або застарілий код CAPTCHA. Спробуйте ще раз");
         }
 
         passwordPolicyValidator.validate(request.getPassword());
 
-        if (userRepository.existsByUsername(request.getUsername().trim())) {
-            throw new DuplicateResourceException("Користувач із логіном '" + request.getUsername() + "' вже зареєстрований");
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
+            throw new DuplicateResourceException("Користувач із логіном '" + username + "' вже зареєстрований");
         }
 
         String email = request.getEmail() != null && !request.getEmail().isBlank()
-                ? request.getEmail().trim()
-                : request.getUsername().trim() + "@repairhub.ua";
+                ? request.getEmail().trim().toLowerCase()
+                : username.toLowerCase() + "@repairhub.ua";
 
-        if (userRepository.existsByEmail(email)) {
-            throw new DuplicateResourceException("Користувач із email '" + email + "' вже зареєстрований");
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            throw new DuplicateResourceException("Користувач із електронною поштою '" + email + "' вже зареєстрований");
         }
 
         String activationToken = UUID.randomUUID().toString();
 
         User user = User.builder()
-                .username(request.getUsername().trim())
+                .username(username)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName().trim())
                 .email(email)
-                .phone(request.getPhone())
+                .phone(request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : null)
                 .role(Role.ROLE_USER)
                 .isActive(true)
                 .emailVerified(false)
@@ -220,7 +227,7 @@ public class AuthService {
 
         user = userRepository.save(user);
         mockEmailService.sendActivationEmail(email, user.getUsername(), activationToken);
-        logAudit(user.getUsername(), ip, "REGISTERED", "Реєстрація успішна, надіслано лист активації");
+        logAudit(user.getUsername(), ip, "REGISTERED", "Реєстрація успішна, надіслано лист активації на " + email);
 
         return AuthResponse.builder()
                 .id(user.getId())
@@ -230,17 +237,17 @@ public class AuthService {
                 .email(user.getEmail())
                 .emailVerified(false)
                 .twoFactorEnabled(false)
-                .message("Реєстрація успішна! Лист із посиланням для активації надіслано на вашу електронну пошту")
+                .message("Реєстрація успішна! На адресу " + email + " надіслано лист для підтвердження")
                 .build();
     }
 
     @Transactional
     public String activateAccount(ActivateAccountRequest request) {
         User user = userRepository.findByActivationToken(request.getToken().trim())
-                .orElseThrow(() -> new BadRequestException("Недійсний токен активації облікового запису"));
+                .orElseThrow(() -> new BadRequestException("Недійсне або вже використане посилання активації"));
 
         if (user.getActivationExpiresAt() != null && ZonedDateTime.now().isAfter(user.getActivationExpiresAt())) {
-            throw new BadRequestException("Термін дії токена активації минув. Запросіть нове посилання");
+            throw new BadRequestException("Термін дії посилання активації минув (24 години)");
         }
 
         user.setEmailVerified(true);
@@ -248,14 +255,14 @@ public class AuthService {
         user.setActivationExpiresAt(null);
         userRepository.save(user);
 
-        logAudit(user.getUsername(), "system", "ACTIVATED", "Обліковий запис успішно активовано");
-        return "Обліковий запис успішно активовано! Тепер ви можете увійти до системи.";
+        logAudit(user.getUsername(), "email-link", "ACTIVATED", "Електронну пошту успішно підтверджено");
+        return "Електронну пошту успішно підтверджено! Тепер ви можете увійти у свій акаунт.";
     }
 
     @Transactional
     public String forgotPassword(ForgotPasswordRequest request) {
-        User user = userRepository.findByEmail(request.getEmail().trim())
-                .orElseThrow(() -> new ResourceNotFoundException("Користувача з вказаною поштою не знайдено"));
+        User user = userRepository.findByEmailIgnoreCase(request.getEmail().trim())
+                .orElseThrow(() -> new ResourceNotFoundException("Обліковий запис із вказаною електронною поштою не знайдено"));
 
         String resetToken = UUID.randomUUID().toString();
         user.setPasswordResetToken(resetToken);
@@ -263,18 +270,18 @@ public class AuthService {
         userRepository.save(user);
 
         mockEmailService.sendPasswordResetEmail(user.getEmail(), user.getUsername(), resetToken);
-        logAudit(user.getUsername(), "system", "PASSWORD_RESET_REQUESTED", "Згенеровано токен скидання пароля");
+        logAudit(user.getUsername(), "email-reset", "PASSWORD_RESET_REQUESTED", "Надіслано лист для відновлення пароля");
 
-        return "Лист із посиланням для відновлення пароля надіслано на вашу електронну пошту.";
+        return "Лист із посиланням для скидання пароля надіслано на " + user.getEmail();
     }
 
     @Transactional
     public String resetPassword(ResetPasswordRequest request) {
         User user = userRepository.findByPasswordResetToken(request.getToken().trim())
-                .orElseThrow(() -> new BadRequestException("Недійсний або застарілий токен відновлення пароля"));
+                .orElseThrow(() -> new BadRequestException("Недійсне або вже використане посилання відновлення пароля"));
 
         if (user.getPasswordResetExpiresAt() != null && ZonedDateTime.now().isAfter(user.getPasswordResetExpiresAt())) {
-            throw new BadRequestException("Термін дії посилання для відновлення пароля минув (ліміт 15 хвилин)");
+            throw new BadRequestException("Термін дії посилання для відновлення пароля минув (15 хвилин)");
         }
 
         passwordPolicyValidator.validate(request.getNewPassword());
@@ -287,28 +294,51 @@ public class AuthService {
         user.setLockedUntil(null);
         userRepository.save(user);
 
-        logAudit(user.getUsername(), "system", "PASSWORD_RESET_SUCCESS", "Пароль успішно змінено");
-        return "Пароль успішно оновлено! Ви можете увійти з новим паролем.";
+        logAudit(user.getUsername(), "email-reset", "PASSWORD_RESET_SUCCESS", "Пароль успішно змінено");
+        return "Новий пароль збережено! Тепер ви можете увійти до облікового запису.";
     }
 
-    public AuthResponse oauthLogin(OAuthLoginRequest request, HttpServletRequest httpRequest) {
-        String ip = extractClientIp(httpRequest);
-        String email = request.getEmail().trim().toLowerCase();
-        String provider = request.getProvider().toUpperCase();
+    public String getGoogleAuthorizationUrl(String redirectUri) {
+        return googleOAuthService.buildAuthorizationUrl(redirectUri);
+    }
 
-        User user = userRepository.findByEmail(email).orElse(null);
+    @Transactional
+    public AuthResponse authenticateWithGoogleCode(GoogleCodeRequest request, HttpServletRequest httpRequest) {
+        GoogleOAuthService.GoogleUserInfo googleUser = googleOAuthService.exchangeCodeForUser(
+                request.getCode(),
+                request.getRedirectUri()
+        );
+        return completeOAuthAuthentication("GOOGLE", googleUser.email(), googleUser.fullName(), httpRequest);
+    }
+
+    @Transactional
+    public AuthResponse oauthLogin(OAuthLoginRequest request, HttpServletRequest httpRequest) {
+        return completeOAuthAuthentication(
+                request.getProvider().toUpperCase(),
+                request.getEmail().trim().toLowerCase(),
+                request.getFullName().trim(),
+                httpRequest
+        );
+    }
+
+    private AuthResponse completeOAuthAuthentication(String provider, String email, String fullName, HttpServletRequest httpRequest) {
+        String ip = extractClientIp(httpRequest);
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
 
         if (user == null) {
             String baseUsername = email.split("@")[0].replaceAll("[^a-zA-Z0-9_]", "_");
+            if (baseUsername.length() < 3) {
+                baseUsername = "user_" + baseUsername;
+            }
             String username = baseUsername;
             int counter = 1;
-            while (userRepository.existsByUsername(username)) {
+            while (userRepository.existsByUsernameIgnoreCase(username)) {
                 username = baseUsername + counter++;
             }
 
             user = User.builder()
                     .username(username)
-                    .fullName(request.getFullName())
+                    .fullName(fullName)
                     .email(email)
                     .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
                     .role(Role.ROLE_USER)
@@ -321,20 +351,31 @@ public class AuthService {
                     .build();
 
             user = userRepository.save(user);
-            logAudit(user.getUsername(), ip, "OAUTH_REGISTER", "Реєстрація через " + provider);
+            logAudit(user.getUsername(), ip, "OAUTH_REGISTER", "Реєстрація через " + provider + " (" + email + ")");
         } else {
+            if (Boolean.FALSE.equals(user.getIsActive())) {
+                logAudit(user.getUsername(), ip, "OAUTH_BLOCKED", "Спроба OAuth входу в деактивований акаунт");
+                throw new AccountLockedException("Обліковий запис деактивовано адміністратором");
+            }
             if (Boolean.TRUE.equals(user.getIsLocked())) {
                 if (user.getLockedUntil() != null && ZonedDateTime.now().isAfter(user.getLockedUntil())) {
                     user.setIsLocked(false);
                     user.setLockedUntil(null);
                     user.setFailedLoginAttempts(0);
-                    userRepository.save(user);
                 } else {
                     logAudit(user.getUsername(), ip, "OAUTH_BLOCKED", "Спроба OAuth входу в заблокований акаунт");
-                    throw new AccountLockedException("Обліковий запис заблоковано адміністратором");
+                    throw new AccountLockedException("Обліковий запис заблоковано");
                 }
             }
-            logAudit(user.getUsername(), ip, "OAUTH_LOGIN", "Успішний вхід через " + provider);
+            user.setEmailVerified(true);
+            user.setActivationToken(null);
+            user.setActivationExpiresAt(null);
+            user.setFailedLoginAttempts(0);
+            if ("LOCAL".equalsIgnoreCase(user.getAuthProvider()) && "GOOGLE".equalsIgnoreCase(provider)) {
+                user.setAuthProvider("LOCAL+GOOGLE");
+            }
+            user = userRepository.save(user);
+            logAudit(user.getUsername(), ip, "OAUTH_LOGIN", "Успішний вхід через " + provider + " (" + email + ")");
         }
 
         String token = jwtService.generateToken(user);
@@ -353,19 +394,23 @@ public class AuthService {
 
     @Transactional
     public UserSecurityProfileResponse toggleTwoFactor(String username, Boolean enabled) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("Користувача не знайдено"));
+        User user = findUserByIdentifier(username);
+        if (user == null) {
+            throw new ResourceNotFoundException("Користувача не знайдено");
+        }
 
         user.setTwoFactorEnabled(Boolean.TRUE.equals(enabled));
         userRepository.save(user);
-        logAudit(username, "profile", "2FA_TOGGLED", "2FA статус змінено на: " + enabled);
+        logAudit(user.getUsername(), "profile", "2FA_TOGGLED", "2FA статус змінено на: " + enabled);
 
         return mapToProfile(user);
     }
 
     public UserSecurityProfileResponse getUserProfile(String username) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new ResourceNotFoundException("Користувача не знайдено"));
+        User user = findUserByIdentifier(username);
+        if (user == null) {
+            throw new ResourceNotFoundException("Користувача не знайдено");
+        }
         return mapToProfile(user);
     }
 
@@ -409,6 +454,16 @@ public class AuthService {
         user.setFailedLoginAttempts(0);
         userRepository.save(user);
         logAudit(user.getUsername(), "admin", "UNBLOCKED_BY_ADMIN", "Адміністратор розблокував акаунт");
+    }
+
+    private User findUserByIdentifier(String identifier) {
+        if (identifier == null || identifier.isBlank()) {
+            return null;
+        }
+        String trimmed = identifier.trim();
+        return userRepository.findByUsernameIgnoreCase(trimmed)
+                .or(() -> userRepository.findByEmailIgnoreCase(trimmed))
+                .orElse(null);
     }
 
     private void logAudit(String username, String ip, String status, String details) {

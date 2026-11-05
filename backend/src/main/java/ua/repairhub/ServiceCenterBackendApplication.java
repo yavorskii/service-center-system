@@ -76,9 +76,7 @@ public class ServiceCenterBackendApplication {
                     user.setRole(role);
                     user.setPhone(phone);
                     user.setEmail(email);
-                    if (user.getEmailVerified() == null) {
-                        user.setEmailVerified(true);
-                    }
+                    user.setEmailVerified(true);
                     if (user.getIsLocked() == null) {
                         user.setIsLocked(false);
                     }

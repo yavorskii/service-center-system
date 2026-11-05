@@ -20,7 +20,9 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByUsername(username)
+        String identifier = username != null ? username.trim() : "";
+        User user = userRepository.findByUsernameIgnoreCase(identifier)
+                .or(() -> userRepository.findByEmailIgnoreCase(identifier))
                 .orElseThrow(() -> new UsernameNotFoundException("Користувача '" + username + "' не знайдено"));
 
         boolean accountNonLocked = !Boolean.TRUE.equals(user.getIsLocked())

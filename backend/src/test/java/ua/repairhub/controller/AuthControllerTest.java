@@ -10,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.annotation.Transactional;
 import ua.repairhub.dto.request.*;
 import ua.repairhub.model.Role;
 
@@ -24,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Transactional
 class AuthControllerTest {
 
     @Autowired
@@ -159,9 +161,10 @@ class AuthControllerTest {
         MvcResult userLoginRes = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                LoginRequest.builder().username("sec_student").password("Secure#2026").build())))
+                                LoginRequest.builder().username("sec_student@repairhub.ua").password("Secure#2026").build())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").isString())
+                .andExpect(jsonPath("$.username").value("sec_student"))
                 .andReturn();
         String userJwt = objectMapper.readTree(userLoginRes.getResponse().getContentAsString()).get("token").asText();
 
