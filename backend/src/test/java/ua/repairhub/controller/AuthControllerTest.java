@@ -1,5 +1,6 @@
 package ua.repairhub.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -8,10 +9,15 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
-import ua.repairhub.dto.request.LoginRequest;
-import ua.repairhub.dto.request.RegisterRequest;
+import org.springframework.test.web.servlet.MvcResult;
+import ua.repairhub.dto.request.*;
 import ua.repairhub.model.Role;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -25,6 +31,21 @@ class AuthControllerTest {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    private String[] fetchCaptcha() throws Exception {
+        MvcResult res = mockMvc.perform(get("/api/v1/auth/captcha"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode json = objectMapper.readTree(res.getResponse().getContentAsString());
+        String token = json.get("captchaToken").asText();
+        String svg = json.get("captchaSvg").asText();
+        Matcher m = Pattern.compile(">([2-9A-Z])</text>").matcher(svg);
+        StringBuilder answer = new StringBuilder();
+        while (m.find()) {
+            answer.append(m.group(1));
+        }
+        return new String[]{token, answer.toString()};
+    }
 
     @Test
     @DisplayName("POST /api/v1/auth/login - Успішна аутентифікація повертає 200 та JWT Bearer токен")
@@ -45,10 +66,10 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/auth/login - Невірні облікові дані повертають 401 Unauthorized")
+    @DisplayName("POST /api/v1/auth/login - Невірні облікові дані повертають 401 Unauthorized із залишком спроб")
     void login_InvalidCredentials_ReturnsUnauthorized() throws Exception {
         LoginRequest request = LoginRequest.builder()
-                .username("admin_oleg")
+                .username("mgr_alina")
                 .password("wrongpassword")
                 .build();
 
@@ -58,6 +79,12 @@ class AuthControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.error").value("Unauthorized"));
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                LoginRequest.builder().username("mgr_alina").password("manager123").build())))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -76,5 +103,150 @@ class AuthControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
                 .andExpect(jsonPath("$.validationErrors.password").exists());
+    }
+
+    @Test
+    @DisplayName("Lab 6 End-to-End: CAPTCHA, Реєстрація, Email-активація, 2FA, Brute Force, Відновлення пароля та RBAC")
+    void fullSecurityLifecycle_Lab6_Success() throws Exception {
+        RegisterRequest noCaptchaReq = RegisterRequest.builder()
+                .username("sec_student")
+                .password("Secure#2026")
+                .fullName("Студент Тест")
+                .email("sec_student@repairhub.ua")
+                .role(Role.ROLE_ADMIN)
+                .build();
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(noCaptchaReq)))
+                .andExpect(status().isBadRequest());
+
+        String[] captcha = fetchCaptcha();
+        RegisterRequest regReq = RegisterRequest.builder()
+                .username("sec_student")
+                .password("Secure#2026")
+                .fullName("Студент Тест")
+                .email("sec_student@repairhub.ua")
+                .role(Role.ROLE_ADMIN)
+                .captchaToken(captcha[0])
+                .captchaAnswer(captcha[1])
+                .build();
+
+        mockMvc.perform(post("/api/v1/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(regReq)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.role").value("ROLE_USER"))
+                .andExpect(jsonPath("$.emailVerified").value(false));
+
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                LoginRequest.builder().username("sec_student").password("Secure#2026").build())))
+                .andExpect(status().isBadRequest());
+
+        MvcResult emailsRes = mockMvc.perform(get("/api/v1/auth/emails"))
+                .andExpect(status().isOk())
+                .andReturn();
+        JsonNode emails = objectMapper.readTree(emailsRes.getResponse().getContentAsString());
+        String activationToken = emails.get(0).get("token").asText();
+        assertThat(activationToken).isNotBlank();
+
+        mockMvc.perform(post("/api/v1/auth/activate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new ActivateAccountRequest(activationToken))))
+                .andExpect(status().isOk());
+
+        MvcResult userLoginRes = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                LoginRequest.builder().username("sec_student").password("Secure#2026").build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isString())
+                .andReturn();
+        String userJwt = objectMapper.readTree(userLoginRes.getResponse().getContentAsString()).get("token").asText();
+
+        mockMvc.perform(get("/api/v1/security/audit-logs").header("Authorization", "Bearer " + userJwt))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/v1/warehouse/parts").header("Authorization", "Bearer " + userJwt))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/profile/2fa/toggle")
+                        .header("Authorization", "Bearer " + userJwt)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"enabled\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.twoFactorEnabled").value(true));
+
+        MvcResult step1Res = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                LoginRequest.builder().username("sec_student").password("Secure#2026").build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.requiresTwoFactor").value(true))
+                .andExpect(jsonPath("$.tempToken").isString())
+                .andReturn();
+        String tempToken = objectMapper.readTree(step1Res.getResponse().getContentAsString()).get("tempToken").asText();
+
+        JsonNode emailsAfter2fa = objectMapper.readTree(
+                mockMvc.perform(get("/api/v1/auth/emails")).andReturn().getResponse().getContentAsString());
+        String otpCode = emailsAfter2fa.get(0).get("token").asText();
+
+        mockMvc.perform(post("/api/v1/auth/2fa/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                TwoFactorVerifyRequest.builder()
+                                        .username("sec_student")
+                                        .code(otpCode)
+                                        .tempToken(tempToken)
+                                        .build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isString());
+
+        for (int i = 1; i <= 4; i++) {
+            mockMvc.perform(post("/api/v1/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    LoginRequest.builder().username("sec_student").password("WrongPass!" + i).build())))
+                    .andExpect(status().isUnauthorized());
+        }
+        mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                LoginRequest.builder().username("sec_student").password("WrongPass!5").build())))
+                .andExpect(status().isLocked());
+
+        mockMvc.perform(get("/api/v1/profile").header("Authorization", "Bearer " + userJwt))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v1/auth/forgot-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"sec_student@repairhub.ua\"}"))
+                .andExpect(status().isOk());
+
+        JsonNode emailsAfterReset = objectMapper.readTree(
+                mockMvc.perform(get("/api/v1/auth/emails")).andReturn().getResponse().getContentAsString());
+        String resetToken = emailsAfterReset.get(0).get("token").asText();
+
+        mockMvc.perform(post("/api/v1/auth/reset-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                ResetPasswordRequest.builder()
+                                        .token(resetToken)
+                                        .newPassword("NewStrong@2026")
+                                        .build())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v1/auth/oauth")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                OAuthLoginRequest.builder()
+                                        .provider("GOOGLE")
+                                        .email("oauth_student@gmail.com")
+                                        .fullName("OAuth Student")
+                                        .externalId("GOOGLE_oauth_student")
+                                        .build())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isString())
+                .andExpect(jsonPath("$.role").value("ROLE_USER"));
     }
 }
