@@ -1,11 +1,21 @@
 @import "tailwindcss";
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-snap-type: y mandatory;
+  }
   body {
     background-color: #0B0F19;
     color: #F8FAFC;
     @apply antialiased font-sans min-h-screen selection:bg-blue-600 selection:text-white;
   }
+}
+
+.fullpage-section {
+  scroll-snap-align: start;
+  scroll-snap-stop: normal;
+  min-height: 100vh;
 }
 
 .no-scrollbar::-webkit-scrollbar {

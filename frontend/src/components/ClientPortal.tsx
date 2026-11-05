@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Wrench,
   Search,
@@ -62,6 +62,39 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [searchAttempted, setSearchAttempted] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState('hero');
+
+  useEffect(() => {
+    const sectionIds = currentUser
+      ? ['cabinet', 'hero', 'services', 'workflow', 'about']
+      : ['hero', 'services', 'workflow', 'about'];
+
+    const handleScroll = () => {
+      const scrollPos = window.scrollY + window.innerHeight / 2.5;
+      for (const id of sectionIds) {
+        const el = document.getElementById(id);
+        if (el) {
+          const top = el.offsetTop;
+          const height = el.offsetHeight;
+          if (scrollPos >= top && scrollPos < top + height) {
+            setActiveSection(id);
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [currentUser]);
+
+  const navSections = [
+    ...(currentUser ? [{ id: 'cabinet', label: 'Мій кабінет' }] : []),
+    { id: 'hero', label: 'Головна' },
+    { id: 'services', label: 'Послуги' },
+    { id: 'workflow', label: 'Етапи робіт' },
+    { id: 'about', label: 'Про нас і контакти' }
+  ];
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -225,21 +258,21 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
 
             <nav className="hidden md:flex items-center space-x-6 text-xs font-medium text-slate-300">
               {currentUser && (
-                <button onClick={() => scrollToSection('cabinet')} className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
+                <button onClick={() => scrollToSection('cabinet')} className={`${activeSection === 'cabinet' ? 'text-blue-400 font-bold' : 'text-slate-300 hover:text-white'} transition-colors`}>
                   Мій кабінет
                 </button>
               )}
-              <button onClick={() => scrollToSection('tracking')} className="hover:text-white transition-colors">
-                Онлайн-трекінг
+              <button onClick={() => scrollToSection('hero')} className={`${activeSection === 'hero' ? 'text-blue-400 font-bold' : 'text-slate-300 hover:text-white'} transition-colors`}>
+                Головна
               </button>
-              <button onClick={() => scrollToSection('services')} className="hover:text-white transition-colors">
+              <button onClick={() => scrollToSection('services')} className={`${activeSection === 'services' ? 'text-blue-400 font-bold' : 'text-slate-300 hover:text-white'} transition-colors`}>
                 Послуги та ціни
               </button>
-              <button onClick={() => scrollToSection('about')} className="hover:text-white transition-colors">
-                Про нас
+              <button onClick={() => scrollToSection('workflow')} className={`${activeSection === 'workflow' ? 'text-blue-400 font-bold' : 'text-slate-300 hover:text-white'} transition-colors`}>
+                Етапи ремонту
               </button>
-              <button onClick={() => scrollToSection('contacts')} className="hover:text-white transition-colors">
-                Контакти
+              <button onClick={() => scrollToSection('about')} className={`${activeSection === 'about' ? 'text-blue-400 font-bold' : 'text-slate-300 hover:text-white'} transition-colors`}>
+                Про нас
               </button>
             </nav>
 
@@ -306,8 +339,31 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
         </div>
       </header>
 
+      {/* Floating Section Navigation Dots */}
+      <div className="fixed right-5 top-1/2 -translate-y-1/2 z-40 hidden lg:flex flex-col gap-3 p-2 rounded-full bg-slate-900/80 backdrop-blur-md border border-slate-800 shadow-2xl">
+        {navSections.map((sec) => (
+          <button
+            key={sec.id}
+            onClick={() => scrollToSection(sec.id)}
+            className="group relative flex items-center justify-center p-1.5 focus:outline-none"
+            title={sec.label}
+          >
+            <span
+              className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
+                activeSection === sec.id
+                  ? 'bg-blue-500 scale-125 ring-4 ring-blue-500/25 shadow-lg shadow-blue-500/50'
+                  : 'bg-slate-600 hover:bg-slate-400'
+              }`}
+            />
+            <span className="absolute right-9 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-[11px] font-semibold text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity shadow-xl">
+              {sec.label}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {currentUser && (
-        <section id="cabinet" className="py-10 bg-gradient-to-b from-indigo-950/30 via-[#0F172A]/60 to-transparent border-b border-slate-800/80">
+        <section id="cabinet" className="fullpage-section flex flex-col justify-center py-16 bg-gradient-to-b from-indigo-950/30 via-[#0F172A]/60 to-transparent border-b border-slate-800/80 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
             <div className="bg-[#111827] border border-indigo-500/25 rounded-2xl p-6 shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-5">
               <div className="space-y-1.5">
@@ -379,7 +435,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
         </section>
       )}
 
-      <section id="hero" className="relative pt-12 pb-16 md:pt-16 md:pb-20 overflow-hidden border-b border-slate-800/60 bg-gradient-to-b from-[#0F172A]/40 to-transparent">
+      <section id="hero" className="fullpage-section flex flex-col justify-center py-14 relative overflow-hidden border-b border-slate-800/60 bg-gradient-to-b from-[#0F172A]/40 to-transparent">
         {/* Animated ambient background orbs */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[380px] bg-gradient-to-tr from-blue-600/20 via-indigo-500/15 to-purple-600/20 rounded-full blur-[110px] pointer-events-none animate-pulse-glow -z-0" />
         <div className="absolute top-1/3 left-1/4 w-[320px] h-[320px] bg-sky-500/10 rounded-full blur-[90px] pointer-events-none animate-pulse-glow-delayed -z-0" />
@@ -500,7 +556,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
         </section>
       )}
 
-      <section id="services" className="py-16 md:py-20 border-b border-slate-800/80">
+      <section id="services" className="fullpage-section flex flex-col justify-center py-14 relative overflow-hidden border-b border-slate-800/80">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
@@ -647,8 +703,93 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
         </div>
       </section>
 
-      <section id="about" className="py-16 md:py-20 border-b border-slate-800/80 bg-[#0F172A]/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section id="workflow" className="fullpage-section flex flex-col justify-center py-14 relative overflow-hidden border-b border-slate-800/80 bg-[#0F172A]/25">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          <div className="text-center max-w-3xl mx-auto mb-10">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold mb-3">
+              <ClipboardList className="h-3.5 w-3.5" />
+              <span>Прозорий процес обслуговування</span>
+            </div>
+            <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
+              6 етапів виконання робіт
+            </h2>
+            <p className="mt-2 text-xs sm:text-sm text-slate-400">
+              Кожна стадія фіксується в базі даних — статус оновлюється в реальному часі.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 card-hover group hover:border-blue-500/50">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-2xl font-black font-mono text-blue-500/40 group-hover:text-blue-400 transition-colors">01</span>
+                <span className="p-2 rounded-xl bg-blue-500/10 text-blue-400"><ClipboardList className="h-4 w-4" /></span>
+              </div>
+              <h3 className="text-sm font-bold text-white mb-1.5">Прийом та огляд</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Фіксація зовнішнього стану, виявлених дефектів та видача індивідуального трек-коду квитанції.
+              </p>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 card-hover group hover:border-sky-500/50">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-2xl font-black font-mono text-sky-500/40 group-hover:text-sky-400 transition-colors">02</span>
+                <span className="p-2 rounded-xl bg-sky-500/10 text-sky-400"><Clock className="h-4 w-4" /></span>
+              </div>
+              <h3 className="text-sm font-bold text-white mb-1.5">Апаратна діагностика</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Повний тест мікросхем та ланцюгів живлення за 30 хвилин. Визначення першопричини поломки.
+              </p>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 card-hover group hover:border-amber-500/50">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-2xl font-black font-mono text-amber-500/40 group-hover:text-amber-400 transition-colors">03</span>
+                <span className="p-2 rounded-xl bg-amber-500/10 text-amber-400"><CheckCircle2 className="h-4 w-4" /></span>
+              </div>
+              <h3 className="text-sm font-bold text-white mb-1.5">Узгодження вартості</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Дзвінок або повідомлення клієнту, погодження переліку деталей і вартості без прихованих платежів.
+              </p>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 card-hover group hover:border-indigo-500/50">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-2xl font-black font-mono text-indigo-500/40 group-hover:text-indigo-400 transition-colors">04</span>
+                <span className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400"><Wrench className="h-4 w-4" /></span>
+              </div>
+              <h3 className="text-sm font-bold text-white mb-1.5">Професійний ремонт</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Встановлення оригінальних деталей із власного складу та складна пайка на BGA-станціях.
+              </p>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 card-hover group hover:border-purple-500/50">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-2xl font-black font-mono text-purple-500/40 group-hover:text-purple-400 transition-colors">05</span>
+                <span className="p-2 rounded-xl bg-purple-500/10 text-purple-400"><ShieldCheck className="h-4 w-4" /></span>
+              </div>
+              <h3 className="text-sm font-bold text-white mb-1.5">Контроль якості (QC)</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Стрес-тестування всіх функцій пристрою та перевірка теплових режимів перед видачею клієнту.
+              </p>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-[#111827] border border-slate-800 card-hover group hover:border-emerald-500/50">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-2xl font-black font-mono text-emerald-500/40 group-hover:text-emerald-400 transition-colors">06</span>
+                <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400"><CheckCircle2 className="h-4 w-4" /></span>
+              </div>
+              <h3 className="text-sm font-bold text-white mb-1.5">Видача та гарантія</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                SMS/Viber сповіщення про готовність, видача замінених компонентів та гарантійного талона на 6 місяців.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="about" className="fullpage-section flex flex-col justify-between pt-12 relative overflow-hidden bg-[#0F172A]/30 border-b border-slate-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full my-auto py-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <div>
               <div className="inline-block text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">
@@ -728,34 +869,34 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
             </div>
           </div>
         </div>
-      </section>
 
-      <footer className="border-t border-slate-800 bg-[#090D16] py-8 text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded bg-blue-600 flex items-center justify-center">
-              <Wrench className="h-3.5 w-3.5 text-white" />
+        <footer className="border-t border-slate-800 bg-[#090D16] py-6 text-xs text-slate-500 w-full shrink-0">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded bg-blue-600 flex items-center justify-center">
+                <Wrench className="h-3.5 w-3.5 text-white" />
+              </div>
+              <span className="text-slate-300 font-semibold">RepairHub Service Center</span>
+              <span>© 2026 Всі права захищено</span>
             </div>
-            <span className="text-slate-300 font-semibold">RepairHub Service Center</span>
-            <span>© 2026 Всі права захищено</span>
-          </div>
 
-          <div className="flex items-center gap-4">
-            {onOpenSupport && (
-              <button onClick={onOpenSupport} className="text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors">
-                <LifeBuoy className="h-3 w-3 text-blue-400" />
-                <span>Служба підтримки</span>
-              </button>
-            )}
-            {!currentUser && (
-              <button onClick={onOpenLogin} className="text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
-                <Lock className="h-3 w-3 text-blue-400" />
-                <span>Вхід для персоналу</span>
-              </button>
-            )}
+            <div className="flex items-center gap-4">
+              {onOpenSupport && (
+                <button onClick={onOpenSupport} className="text-slate-400 hover:text-white flex items-center gap-1.5 transition-colors">
+                  <LifeBuoy className="h-3 w-3 text-blue-400" />
+                  <span>Служба підтримки</span>
+                </button>
+              )}
+              {!currentUser && (
+                <button onClick={onOpenLogin} className="text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
+                  <Lock className="h-3 w-3 text-blue-400" />
+                  <span>Вхід для персоналу</span>
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      </footer>
+        </footer>
+      </section>
     </div>
   );
 };
