@@ -13,4 +13,6 @@ public class TwoFactorVerifyRequest {
 
     @NotBlank(message = "Код підтвердження є обов'язковим")
     private String code;
+
+    private String tempToken;
 }

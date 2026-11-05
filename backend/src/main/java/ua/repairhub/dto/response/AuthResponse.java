@@ -20,6 +20,10 @@ public class AuthResponse {
     private Role role;
     @Builder.Default
     private Boolean requiresTwoFactor = false;
+    private String tempToken;
+    private String email;
+    @Builder.Default
+    private Boolean twoFactorEnabled = false;
     @Builder.Default
     private Boolean emailVerified = true;
     private String message;

@@ -15,8 +15,9 @@ public class PasswordPolicyValidator {
     private static final Pattern SPECIAL_PATTERN = Pattern.compile("[^a-zA-Z0-9]");
 
     private static final Set<String> COMMON_WEAK_PASSWORDS = Set.of(
-            "password", "12345678", "123456789", "1234567890", "qwertyui",
-            "admin123", "letmein1", "password123", "welcome1", "iloveyou"
+            "password", "password1", "password1!", "password123", "password123!",
+            "12345678", "123456789", "1234567890", "qwertyui", "qwerty123", "qwerty123!",
+            "admin123", "admin123!", "letmein1", "welcome1", "iloveyou"
     );
 
     public void validate(String password) {
