@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import type { Order, OrderStatus, CreateOrderPayload, AuthUser } from './types';
 import { api } from './services/api';
 import { ClientPortal } from './components/ClientPortal';
@@ -7,7 +7,6 @@ import { RegisterModal } from './components/RegisterModal';
 import { ForgotPasswordModal } from './components/ForgotPasswordModal';
 import { ResetPasswordModal } from './components/ResetPasswordModal';
 import { TwoFactorModal } from './components/TwoFactorModal';
-import { EmailInboxSimulatorModal } from './components/EmailInboxSimulatorModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { SecurityAuditView } from './components/SecurityAuditView';
 import { Navbar } from './components/Navbar';
@@ -20,7 +19,7 @@ import { PublicTrackingView } from './components/PublicTrackingView';
 import { WarehouseView } from './components/WarehouseView';
 import { ClientsView } from './components/ClientsView';
 import { StaffView } from './components/StaffView';
-import { Search, RefreshCw, CheckCircle2, LayoutGrid, List, X, Mail, ShieldCheck, KeyRound } from 'lucide-react';
+import { Search, RefreshCw, CheckCircle2, AlertCircle, LayoutGrid, List, X } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => api.getCurrentUser());
@@ -31,31 +30,38 @@ export const App: React.FC = () => {
   const [resetPasswordToken, setResetPasswordToken] = useState('');
   const [isTwoFactorModalOpen, setIsTwoFactorModalOpen] = useState(false);
   const [twoFactorData, setTwoFactorData] = useState<{ username: string; tempToken: string } | null>(null);
-  const [isInboxModalOpen, setIsInboxModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [oauthProcessing, setOauthProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState<'orders' | 'warehouse' | 'tracking' | 'clients' | 'staff' | 'security'>('orders');
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; isError?: boolean } | null>(null);
+  const handledCallbackRef = useRef(false);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+  const showToast = (text: string, isError = false) => {
+    setToast({ text, isError });
+    setTimeout(() => setToast(null), 4500);
   };
 
   const fetchOrders = async () => {
+    if (!currentUser) {
+      setOrders([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const data = await api.getOrders();
       setOrders(data);
     } catch {
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -66,23 +72,57 @@ export const App: React.FC = () => {
   }, [currentUser]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || handledCallbackRef.current) return;
+
     const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
     const path = window.location.pathname;
+
+    if (path.includes('/auth/google/callback')) {
+      handledCallbackRef.current = true;
+      const code = params.get('code');
+      const oauthError = params.get('error');
+      window.history.replaceState({}, '', '/');
+
+      if (oauthError) {
+        showToast('Вхід через Google скасовано або відхилено', true);
+        return;
+      }
+      if (code) {
+        setOauthProcessing(true);
+        api.exchangeGoogleCode(code)
+          .then(user => {
+            setCurrentUser(user);
+            showToast(`Ви успішно увійшли через Google як ${user.fullName}`);
+          })
+          .catch((err: any) => {
+            showToast(err?.message || 'Не вдалося завершити вхід через Google', true);
+            setIsLoginModalOpen(true);
+          })
+          .finally(() => setOauthProcessing(false));
+      }
+      return;
+    }
+
+    const token = params.get('token');
     if (token && path.includes('/activate')) {
+      handledCallbackRef.current = true;
+      window.history.replaceState({}, '', '/');
       api.activateAccount(token)
-        .then(msg => showToast(msg))
-        .catch((err: any) => showToast(err?.message || 'Помилка активації токена'))
-        .finally(() => window.history.replaceState({}, '', '/'));
+        .then(msg => {
+          showToast(msg);
+          setIsLoginModalOpen(true);
+        })
+        .catch((err: any) => showToast(err?.message || 'Помилка підтвердження електронної пошти', true));
     } else if (token && path.includes('/reset-password')) {
+      handledCallbackRef.current = true;
+      window.history.replaceState({}, '', '/');
       setResetPasswordToken(token);
       setIsResetPasswordModalOpen(true);
-      window.history.replaceState({}, '', '/');
     }
   }, []);
 
   const isRegularUser = currentUser?.role === 'ROLE_USER' || currentUser?.role === 'ROLE_CLIENT';
+  const isStaffUser = Boolean(currentUser && !isRegularUser);
   const isAdmin = currentUser?.role === 'ROLE_ADMIN';
   const isManager = currentUser?.role === 'ROLE_MANAGER';
 
@@ -95,8 +135,9 @@ export const App: React.FC = () => {
     api.logout();
     setCurrentUser(null);
     setSelectedOrder(null);
+    setOrders([]);
     setActiveTab('orders');
-    showToast('Ви вийшли з внутрішньої панелі CRM');
+    showToast('Ви вийшли з облікового запису');
   };
 
   const handleRequireTwoFactor = (username: string, tempToken: string) => {
@@ -104,18 +145,12 @@ export const App: React.FC = () => {
     setIsTwoFactorModalOpen(true);
   };
 
-  const handleOpenResetWithToken = (token?: string) => {
-    if (token) {
-      setResetPasswordToken(token);
-    }
-    setIsForgotPasswordModalOpen(false);
-    setIsResetPasswordModalOpen(true);
-  };
-
   const handleCreateOrder = async (payload: CreateOrderPayload) => {
     const created = await api.createOrder(payload);
-    setOrders(prev => [created, ...prev]);
-    showToast(`Замовлення ${created.orderNumber} успішно створено (код трекінгу: ${created.trackingCode})`);
+    if (currentUser) {
+      setOrders(prev => [created, ...prev]);
+    }
+    showToast(`Заявку ${created.orderNumber} створено! Код відстеження: ${created.trackingCode}`);
   };
 
   const handleOrderUpdated = (updated: Order, toastMsg?: string) => {
@@ -131,7 +166,7 @@ export const App: React.FC = () => {
       const updated = await api.updateOrderStatus(orderId, newStatus);
       handleOrderUpdated(updated, `Статус ${updated.orderNumber} змінено на "${statusConfig[newStatus].label}"`);
     } catch (err: any) {
-      showToast(err?.message || 'Не вдалося змінити статус');
+      showToast(err?.message || 'Не вдалося змінити статус', true);
     }
   };
 
@@ -144,7 +179,7 @@ export const App: React.FC = () => {
       if (selectedOrder?.id === orderId) setSelectedOrder(null);
       showToast('Замовлення успішно видалено з бази даних');
     } catch (err: any) {
-      showToast(err?.message || 'Помилка видалення замовлення');
+      showToast(err?.message || 'Помилка видалення замовлення', true);
     }
   };
 
@@ -191,27 +226,38 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0B0F19] text-slate-100 flex flex-col font-sans antialiased">
-      {toastMessage && (
-        <div className="fixed bottom-5 right-5 z-50 bg-slate-900 border border-slate-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-medium animate-in fade-in slide-in-from-bottom-3 duration-200">
-          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-          <span>{toastMessage}</span>
+      {toast && (
+        <div className={`fixed bottom-5 right-5 z-50 border px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs font-medium animate-in fade-in slide-in-from-bottom-3 duration-200 ${
+          toast.isError
+            ? 'bg-rose-950/95 border-rose-500/40 text-rose-100'
+            : 'bg-slate-900 border-slate-700 text-white'
+        }`}>
+          {toast.isError ? (
+            <AlertCircle className="h-4 w-4 text-rose-400 shrink-0" />
+          ) : (
+            <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+          )}
+          <span>{toast.text}</span>
         </div>
       )}
 
-      <button
-        onClick={() => setIsInboxModalOpen(true)}
-        title="Поштовий клієнт (Mock Email)"
-        className="fixed bottom-5 left-5 z-40 p-3 rounded-2xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-xl shadow-sky-500/20 flex items-center gap-2 text-xs font-semibold transition active:scale-95"
-      >
-        <Mail className="w-4 h-4" />
-        <span className="hidden sm:inline">Поштова скринька</span>
-      </button>
+      {oauthProcessing && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl px-6 py-5 flex items-center gap-3 shadow-2xl">
+            <RefreshCw className="w-5 h-5 animate-spin text-indigo-400" />
+            <span className="text-sm font-medium text-white">Завершення входу через Google...</span>
+          </div>
+        </div>
+      )}
 
-      {!currentUser ? (
+      {!isStaffUser || !currentUser ? (
         <ClientPortal
+          currentUser={currentUser}
+          myOrders={orders}
           onOpenLogin={() => setIsLoginModalOpen(true)}
           onOpenRegister={() => setIsRegisterModalOpen(true)}
-          onOpenInbox={() => setIsInboxModalOpen(true)}
+          onOpenProfile={() => setIsProfileModalOpen(true)}
+          onLogout={handleLogout}
           onOpenCreateModal={() => setIsCreateModalOpen(true)}
         />
       ) : (
@@ -222,8 +268,6 @@ export const App: React.FC = () => {
             onOpenCreateModal={() => setIsCreateModalOpen(true)}
             currentUser={currentUser}
             onLogout={handleLogout}
-            onBackToPortal={() => setCurrentUser(null)}
-            onOpenInbox={() => setIsInboxModalOpen(true)}
             onOpenProfile={() => setIsProfileModalOpen(true)}
           />
 
@@ -232,8 +276,8 @@ export const App: React.FC = () => {
               <PublicTrackingView onSearch={code => api.getOrderByTrackingCode(code)} />
             )}
 
-            {!isRegularUser && activeTab === 'warehouse' && (
-              <WarehouseView currentUser={currentUser} orders={orders} onNotify={showToast} />
+            {activeTab === 'warehouse' && (
+              <WarehouseView currentUser={currentUser} orders={orders} onNotify={msg => showToast(msg)} />
             )}
 
             {(isAdmin || isManager) && activeTab === 'clients' && <ClientsView />}
@@ -244,28 +288,7 @@ export const App: React.FC = () => {
 
             {activeTab === 'orders' && (
               <>
-                {isRegularUser ? (
-                  <div className="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/20 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <h2 className="text-base font-bold text-white flex items-center gap-2">
-                        <ShieldCheck className="w-5 h-5 text-sky-400" />
-                        <span>Особистий кабінет користувача: {currentUser.fullName}</span>
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Ви маєте доступ лише до власного профілю безпеки, двофакторної автентифікації (2FA), власних заявок та онлайн-трекінгу.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setIsProfileModalOpen(true)}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-lg shadow-indigo-500/20 transition shrink-0"
-                    >
-                      <KeyRound className="w-4 h-4" />
-                      <span>Налаштування профілю та 2FA</span>
-                    </button>
-                  </div>
-                ) : (
-                  <StatsCards orders={orders} currentUser={currentUser} />
-                )}
+                <StatsCards orders={orders} currentUser={currentUser} />
 
                 <div className="bg-[#111827] border border-slate-800 rounded-2xl p-4 shadow-sm space-y-3.5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -419,7 +442,6 @@ export const App: React.FC = () => {
           setIsRegisterModalOpen(false);
           setIsLoginModalOpen(true);
         }}
-        onOpenInbox={() => setIsInboxModalOpen(true)}
       />
 
       {twoFactorData && (
@@ -432,15 +454,12 @@ export const App: React.FC = () => {
             setTwoFactorData(null);
           }}
           onSuccess={handleLoginSuccess}
-          onOpenInbox={() => setIsInboxModalOpen(true)}
         />
       )}
 
       <ForgotPasswordModal
         isOpen={isForgotPasswordModalOpen}
         onClose={() => setIsForgotPasswordModalOpen(false)}
-        onOpenResetWithToken={handleOpenResetWithToken}
-        onOpenInbox={() => setIsInboxModalOpen(true)}
         onSwitchToLogin={() => {
           setIsForgotPasswordModalOpen(false);
           setIsLoginModalOpen(true);
@@ -460,27 +479,29 @@ export const App: React.FC = () => {
         }}
       />
 
-      <EmailInboxSimulatorModal
-        isOpen={isInboxModalOpen}
-        onClose={() => setIsInboxModalOpen(false)}
-        onOpenResetWithToken={handleOpenResetWithToken}
-        onActivated={() => {
-          showToast('Акаунт успішно активовано через пошту!');
-        }}
-      />
-
       <UserProfileModal
         isOpen={isProfileModalOpen}
         currentUser={currentUser}
         onClose={() => setIsProfileModalOpen(false)}
-        onOpenInbox={() => setIsInboxModalOpen(true)}
+        onProfileUpdated={profile => {
+          if (currentUser) {
+            const updated: AuthUser = {
+              ...currentUser,
+              emailVerified: profile.emailVerified,
+              twoFactorEnabled: profile.twoFactorEnabled
+            };
+            setCurrentUser(updated);
+            localStorage.setItem('repairhub_user', JSON.stringify(updated));
+          }
+        }}
       />
 
       <OrderCreateModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSubmit={handleCreateOrder}
-        isStaff={!!currentUser}
+        isStaff={isStaffUser}
+        currentUser={currentUser}
       />
     </div>
   );

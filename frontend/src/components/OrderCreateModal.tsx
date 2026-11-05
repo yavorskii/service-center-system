@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import type { CreateOrderPayload } from '../types';
+import React, { useState, useEffect } from 'react';
+import type { CreateOrderPayload, AuthUser } from '../types';
 import { X, Check, AlertCircle } from 'lucide-react';
 
 interface OrderCreateModalProps {
@@ -7,13 +7,15 @@ interface OrderCreateModalProps {
   onClose: () => void;
   onSubmit: (payload: CreateOrderPayload) => Promise<void>;
   isStaff?: boolean;
+  currentUser?: AuthUser | null;
 }
 
 export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({ 
   isOpen, 
   onClose, 
   onSubmit,
-  isStaff = false 
+  isStaff = false,
+  currentUser = null
 }) => {
   const [formData, setFormData] = useState<CreateOrderPayload>({
     clientName: '',
@@ -28,6 +30,16 @@ export const OrderCreateModal: React.FC<OrderCreateModalProps> = ({
     priority: 'MEDIUM',
     estimatedCost: 500,
   });
+
+  useEffect(() => {
+    if (isOpen && currentUser && (currentUser.role === 'ROLE_USER' || currentUser.role === 'ROLE_CLIENT')) {
+      setFormData(prev => ({
+        ...prev,
+        clientName: prev.clientName || currentUser.fullName || '',
+        clientEmail: prev.clientEmail || currentUser.email || ''
+      }));
+    }
+  }, [isOpen, currentUser]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -1,33 +1,39 @@
 import React, { useState } from 'react';
-import { 
-  Wrench, 
-  Search, 
-  Lock, 
-  ShieldCheck, 
-  Clock, 
-  CheckCircle2, 
-  Laptop, 
-  Smartphone, 
-  Tablet, 
-  Monitor, 
-  Phone, 
-  MapPin, 
-  Calendar, 
-  ArrowRight, 
-  Plus, 
+import {
+  Wrench,
+  Search,
+  Lock,
+  ShieldCheck,
+  Clock,
+  CheckCircle2,
+  Laptop,
+  Smartphone,
+  Tablet,
+  Monitor,
+  Phone,
+  MapPin,
+  Calendar,
+  ArrowRight,
+  Plus,
   AlertCircle,
   Copy,
   Check,
-  Mail
+  User,
+  LogOut,
+  KeyRound,
+  ClipboardList
 } from 'lucide-react';
-import type { Order, OrderStatus } from '../types';
+import type { Order, OrderStatus, AuthUser } from '../types';
 import { api } from '../services/api';
 
 interface ClientPortalProps {
+  currentUser?: AuthUser | null;
+  myOrders?: Order[];
   onOpenLogin: () => void;
   onOpenCreateModal: () => void;
   onOpenRegister?: () => void;
-  onOpenInbox?: () => void;
+  onOpenProfile?: () => void;
+  onLogout?: () => void;
 }
 
 const statusWorkflow: { key: OrderStatus; label: string; desc: string }[] = [
@@ -40,10 +46,13 @@ const statusWorkflow: { key: OrderStatus; label: string; desc: string }[] = [
 ];
 
 export const ClientPortal: React.FC<ClientPortalProps> = ({
+  currentUser,
+  myOrders = [],
   onOpenLogin,
   onOpenCreateModal,
   onOpenRegister,
-  onOpenInbox
+  onOpenProfile,
+  onLogout
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Order[] | null>(null);
@@ -89,6 +98,111 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
     return 'upcoming';
   };
 
+  const renderOrderTrackingCard = (order: Order) => (
+    <div key={order.id} className="bg-[#111827] border border-slate-800 rounded-2xl p-5 shadow-lg text-left">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-800">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-white font-mono">{order.orderNumber}</span>
+            <span className="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">
+              {order.device.brand} {order.device.model}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <button
+              onClick={() => handleCopy(order.trackingCode)}
+              className="text-xs text-slate-400 hover:text-blue-400 font-mono flex items-center gap-1 transition-colors"
+            >
+              <span>Код: {order.trackingCode}</span>
+              {copiedCode === order.trackingCode ? (
+                <Check className="h-3 w-3 text-emerald-400" />
+              ) : (
+                <Copy className="h-3 w-3 text-slate-500" />
+              )}
+            </button>
+            <span className="text-xs text-slate-500">• Прийнято: {order.createdAt}</span>
+          </div>
+        </div>
+
+        <div className="text-right">
+          <span className="text-[10px] text-slate-400 block uppercase font-medium">До сплати</span>
+          <span className="text-lg font-bold text-white font-mono">{order.totalCost} ₴</span>
+        </div>
+      </div>
+
+      <div className="py-5">
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+          {statusWorkflow.map((step) => {
+            const state = getStepState(step.key, order.status);
+            return (
+              <div key={step.key} className="text-center">
+                <div className={`h-1.5 rounded-full mb-2 ${
+                  state === 'completed'
+                    ? 'bg-emerald-500'
+                    : state === 'current'
+                    ? 'bg-blue-500 ring-2 ring-blue-500/30'
+                    : 'bg-slate-800'
+                }`} />
+                <div className={`text-xs font-semibold ${
+                  state === 'current' ? 'text-blue-400' : state === 'completed' ? 'text-emerald-400' : 'text-slate-500'
+                }`}>
+                  {step.label}
+                </div>
+                <div className="text-[10px] text-slate-500 hidden sm:block mt-0.5">
+                  {step.desc}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+        <div className="bg-[#090D16] rounded-xl p-3.5 border border-slate-800/80">
+          <div className="font-semibold text-slate-300 mb-1">Заявлена несправність:</div>
+          <p className="text-slate-400 leading-relaxed">{order.defectDescription}</p>
+          {order.diagnosticsNotes && (
+            <div className="mt-2 pt-2 border-t border-slate-800 text-amber-300/90 text-xs">
+              <b>Висновок майстра:</b> {order.diagnosticsNotes}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-[#090D16] rounded-xl p-3.5 border border-slate-800/80 flex flex-col justify-between">
+          <div>
+            <div className="font-semibold text-slate-300 mb-2">Деталізація робіт та запчастин:</div>
+            {order.parts.length === 0 && order.services.length === 0 ? (
+              <p className="text-slate-500">Кошторис формується інженером після діагностики</p>
+            ) : (
+              <div className="space-y-1">
+                {order.services.map((s, idx) => (
+                  <div key={`s-${idx}`} className="flex justify-between text-slate-300">
+                    <span className="truncate pr-2">🛠 {s.serviceName}</span>
+                    <span className="font-mono text-slate-200 shrink-0">{s.price} ₴</span>
+                  </div>
+                ))}
+                {order.parts.map((p, idx) => (
+                  <div key={`p-${idx}`} className="flex justify-between text-slate-300">
+                    <span className="truncate pr-2">
+                      📦 {p.partName} ({p.quantity} шт.)
+                    </span>
+                    <span className="font-mono text-slate-200 shrink-0">
+                      {p.unitPrice * p.quantity} ₴
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="mt-2 pt-2 border-t border-slate-800 flex justify-between font-bold text-white">
+            <span>Разом до сплати:</span>
+            <span className="font-mono text-emerald-400">{order.totalCost} ₴</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#090D16] text-[#F8FAFC] flex flex-col font-sans selection:bg-blue-600 selection:text-white">
       <header className="sticky top-0 z-40 bg-[#0F172A]/90 backdrop-blur-md border-b border-slate-800">
@@ -107,9 +221,11 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
             </div>
 
             <nav className="hidden md:flex items-center space-x-6 text-xs font-medium text-slate-300">
-              <button onClick={() => scrollToSection('hero')} className="hover:text-white transition-colors">
-                Головна
-              </button>
+              {currentUser && (
+                <button onClick={() => scrollToSection('cabinet')} className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
+                  Мій кабінет
+                </button>
+              )}
               <button onClick={() => scrollToSection('tracking')} className="hover:text-white transition-colors">
                 Онлайн-трекінг
               </button>
@@ -124,49 +240,143 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               </button>
             </nav>
 
-                        <div className="flex items-center gap-2">
-              {onOpenInbox && (
-                <button
-                  onClick={onOpenInbox}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700 transition flex items-center gap-1.5"
-                  title="Поштовий клієнт"
-                >
-                  <Mail className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Пошта</span>
-                </button>
+            <div className="flex items-center gap-2">
+              {currentUser ? (
+                <>
+                  <button
+                    onClick={onOpenProfile}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 transition flex items-center gap-1.5"
+                    title="Профіль та безпека"
+                  >
+                    <User className="h-3.5 w-3.5 text-indigo-400" />
+                    <span className="max-w-[130px] truncate">{currentUser.fullName}</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenCreateModal}
+                    className="hidden sm:flex px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow transition items-center gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Записати на ремонт</span>
+                  </button>
+
+                  <button
+                    onClick={onLogout}
+                    title="Вийти з облікового запису"
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-rose-950/40 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/30 transition flex items-center gap-1.5"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Вийти</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  {onOpenRegister && (
+                    <button
+                      onClick={onOpenRegister}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5"
+                    >
+                      <User className="h-3.5 w-3.5 text-indigo-400" />
+                      <span>Реєстрація</span>
+                    </button>
+                  )}
+
+                  <button
+                    onClick={onOpenLogin}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow transition flex items-center gap-1.5"
+                  >
+                    <Lock className="h-3.5 w-3.5" />
+                    <span>Увійти</span>
+                  </button>
+
+                  <button
+                    onClick={onOpenCreateModal}
+                    className="hidden md:flex px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition items-center gap-1.5"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Заявка</span>
+                  </button>
+                </>
               )}
-
-              {onOpenRegister && (
-                <button
-                  onClick={onOpenRegister}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-indigo-300 border border-slate-700 transition flex items-center gap-1.5"
-                >
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  <span>Реєстрація</span>
-                </button>
-              )}
-
-              <button
-                onClick={onOpenLogin}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow transition flex items-center gap-1.5"
-              >
-                <Lock className="h-3.5 w-3.5" />
-                <span>Вхід</span>
-              </button>
-
-              <button
-                onClick={onOpenCreateModal}
-                className="hidden md:flex px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition items-center gap-1.5"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Заявка</span>
-              </button>
             </div>
           </div>
         </div>
       </header>
 
-      <section id="hero" className="relative pt-12 pb-16 md:pt-20 md:pb-24 overflow-hidden border-b border-slate-800/60 bg-gradient-to-b from-[#0F172A]/40 to-transparent">
+      {currentUser && (
+        <section id="cabinet" className="py-10 bg-gradient-to-b from-indigo-950/30 via-[#0F172A]/60 to-transparent border-b border-slate-800/80">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+            <div className="bg-[#111827] border border-indigo-500/25 rounded-2xl p-6 shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <span>Авторизований клієнт</span>
+                  </span>
+                  {currentUser.email && (
+                    <span className="text-xs text-slate-400 font-mono">{currentUser.email}</span>
+                  )}
+                </div>
+                <h2 className="text-xl sm:text-2xl font-bold text-white">
+                  Вітаємо, {currentUser.fullName}!
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-400 max-w-2xl">
+                  У вашому особистому кабінеті доступні історія звернень, онлайн-статус ремонту пристроїв та керування захистом облікового запису (2FA).
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                <button
+                  onClick={onOpenProfile}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 text-xs font-semibold flex items-center gap-2 transition"
+                >
+                  <KeyRound className="w-4 h-4 text-amber-400" />
+                  <span>Профіль та безпека (2FA)</span>
+                </button>
+                <button
+                  onClick={onOpenCreateModal}
+                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-lg shadow-blue-600/20 flex items-center gap-2 transition"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Нова заявка на ремонт</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                  <ClipboardList className="w-4 h-4 text-blue-400" />
+                  <span>Мої заявки на ремонт ({myOrders.length})</span>
+                </h3>
+              </div>
+
+              {myOrders.length === 0 ? (
+                <div className="bg-[#111827]/70 border border-slate-800 rounded-2xl p-8 text-center">
+                  <Wrench className="h-8 w-8 text-slate-600 mx-auto mb-2.5" />
+                  <h4 className="text-sm font-semibold text-slate-200">У вас поки немає активних заявок</h4>
+                  <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                    Оформіть онлайн-запис на діагностику або ремонт, і статус виконання одразу відобразиться у вашому кабінеті.
+                  </p>
+                  <button
+                    onClick={onOpenCreateModal}
+                    className="mt-4 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold inline-flex items-center gap-1.5 transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Оформити першу заявку</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {myOrders.map(renderOrderTrackingCard)}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section id="hero" className="relative pt-12 pb-16 md:pt-16 md:pb-20 overflow-hidden border-b border-slate-800/60 bg-gradient-to-b from-[#0F172A]/40 to-transparent">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-medium mb-6 animate-in fade-in slide-in-from-top-3 duration-300">
             <ShieldCheck className="h-4 w-4" />
@@ -269,110 +479,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               </div>
             ) : (
               <div className="space-y-4">
-                {searchResults?.map(order => (
-                  <div key={order.id} className="bg-[#111827] border border-slate-800 rounded-2xl p-5 shadow-lg">
-                    <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-800">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-white font-mono">{order.orderNumber}</span>
-                          <span className="text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">
-                            {order.device.brand} {order.device.model}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <button
-                            onClick={() => handleCopy(order.trackingCode)}
-                            className="text-xs text-slate-400 hover:text-blue-400 font-mono flex items-center gap-1 transition-colors"
-                          >
-                            <span>Код: {order.trackingCode}</span>
-                            {copiedCode === order.trackingCode ? (
-                              <Check className="h-3 w-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="h-3 w-3 text-slate-500" />
-                            )}
-                          </button>
-                          <span className="text-xs text-slate-500">• Прийнято: {order.createdAt}</span>
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <span className="text-[10px] text-slate-400 block uppercase font-medium">До сплати</span>
-                        <span className="text-lg font-bold text-white font-mono">{order.totalCost} ₴</span>
-                      </div>
-                    </div>
-
-                    <div className="py-5">
-                      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
-                        {statusWorkflow.map((step) => {
-                          const state = getStepState(step.key, order.status);
-                          return (
-                            <div key={step.key} className="text-center">
-                              <div className={`h-1.5 rounded-full mb-2 ${
-                                state === 'completed'
-                                  ? 'bg-emerald-500'
-                                  : state === 'current'
-                                  ? 'bg-blue-500 ring-2 ring-blue-500/30'
-                                  : 'bg-slate-800'
-                              }`} />
-                              <div className={`text-xs font-semibold ${
-                                state === 'current' ? 'text-blue-400' : state === 'completed' ? 'text-emerald-400' : 'text-slate-500'
-                              }`}>
-                                {step.label}
-                              </div>
-                              <div className="text-[10px] text-slate-500 hidden sm:block mt-0.5">
-                                {step.desc}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                      <div className="bg-[#090D16] rounded-xl p-3.5 border border-slate-800/80">
-                        <div className="font-semibold text-slate-300 mb-1">Заявлена несправність:</div>
-                        <p className="text-slate-400 leading-relaxed">{order.defectDescription}</p>
-                        {order.diagnosticsNotes && (
-                          <div className="mt-2 pt-2 border-t border-slate-800 text-amber-300/90 text-xs">
-                            <b>Висновок майстра:</b> {order.diagnosticsNotes}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="bg-[#090D16] rounded-xl p-3.5 border border-slate-800/80 flex flex-col justify-between">
-                        <div>
-                          <div className="font-semibold text-slate-300 mb-2">Деталізація робіт та запчастин:</div>
-                          {order.parts.length === 0 && order.services.length === 0 ? (
-                            <p className="text-slate-500">Кошторис формується інженером після діагностики</p>
-                          ) : (
-                            <div className="space-y-1">
-                              {order.services.map((s, idx) => (
-                                <div key={`s-${idx}`} className="flex justify-between text-slate-300">
-                                  <span className="truncate pr-2">🛠 {s.serviceName}</span>
-                                  <span className="font-mono text-slate-200 shrink-0">{s.price} ₴</span>
-                                </div>
-                              ))}
-                              {order.parts.map((p, idx) => (
-                                <div key={`p-${idx}`} className="flex justify-between text-slate-300">
-                                  <span className="truncate pr-2">
-                                    📦 {p.partName} ({p.quantity} шт.)
-                                  </span>
-                                  <span className="font-mono text-slate-200 shrink-0">
-                                    {p.unitPrice * p.quantity} ₴
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="mt-2 pt-2 border-t border-slate-800 flex justify-between font-bold text-white">
-                          <span>Разом до сплати:</span>
-                          <span className="font-mono text-emerald-400">{order.totalCost} ₴</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                {searchResults?.map(renderOrderTrackingCard)}
               </div>
             )}
           </div>
@@ -561,7 +668,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
 
             <div id="contacts" className="bg-[#111827] border border-slate-800 rounded-2xl p-6 sm:p-8">
               <h3 className="text-base font-bold text-white mb-4">Контактна інформація та графік</h3>
-              
+
               <div className="space-y-4 text-xs text-slate-300">
                 <div className="flex items-start gap-3">
                   <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400 shrink-0">
@@ -619,12 +726,14 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
             <span>© 2026 Всі права захищено</span>
           </div>
 
-          <div className="flex items-center gap-4">
-            <button onClick={onOpenLogin} className="text-slate-400 hover:text-white flex items-center gap-1">
-              <Lock className="h-3 w-3 text-blue-400" />
-              <span>Панель співробітника</span>
-            </button>
-          </div>
+          {!currentUser && (
+            <div className="flex items-center gap-4">
+              <button onClick={onOpenLogin} className="text-slate-400 hover:text-white flex items-center gap-1">
+                <Lock className="h-3 w-3 text-blue-400" />
+                <span>Вхід для персоналу</span>
+              </button>
+            </div>
+          )}
         </div>
       </footer>
     </div>
