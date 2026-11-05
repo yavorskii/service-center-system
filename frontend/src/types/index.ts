@@ -69,6 +69,8 @@ export interface Device {
 
 export interface OrderPartItem {
   id: number;
+  sparePartId?: number;
+  sku?: string;
   partName: string;
   quantity: number;
   unitPrice: number;
@@ -76,8 +78,10 @@ export interface OrderPartItem {
 
 export interface OrderServiceItem {
   id: number;
+  serviceId?: number;
   serviceName: string;
   price: number;
+  status?: string;
 }
 
 export interface Order {
@@ -86,6 +90,7 @@ export interface Order {
   trackingCode: string;
   client: Client;
   device: Device;
+  technicianId?: number;
   technicianName?: string;
   status: OrderStatus;
   priority: OrderPriority;
@@ -108,6 +113,13 @@ export interface SparePart {
   retailPrice: number;
   stockQuantity: number;
   minStockLimit: number;
+}
+
+export interface ServiceCatalogItem {
+  id: number;
+  name: string;
+  description?: string;
+  standardPrice: number;
 }
 
 export interface CreateOrderPayload {
@@ -140,6 +152,8 @@ export interface MockEmail {
   body: string;
   sentAt: string;
   type: string;
+  token?: string;
+  actionUrl?: string;
 }
 
 export interface UserSecurityProfile {

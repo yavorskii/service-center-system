@@ -1,77 +1,84 @@
 import React, { useState } from 'react';
 import type { Order, OrderStatus, AuthUser } from '../types';
-import { 
-  Laptop, 
-  Smartphone, 
-  Tablet, 
-  Copy, 
-  Check, 
-  ArrowRight, 
-  User, 
-  Phone, 
-  MoreHorizontal, 
+import {
+  Laptop,
+  Smartphone,
+  Tablet,
+  Copy,
+  Check,
+  ArrowRight,
+  User,
+  Phone,
+  MoreHorizontal,
   Printer,
-  Trash2
+  Trash2,
+  Package,
+  Wrench
 } from 'lucide-react';
 
 interface OrderCardProps {
   order: Order;
   currentUser: AuthUser;
   onStatusChange: (orderId: number, newStatus: OrderStatus) => void;
+  onOpenDetails: (order: Order) => void;
   onDeleteOrder?: (orderId: number) => void;
 }
 
-export const statusConfig: Record<OrderStatus, { 
-  label: string; 
-  badgeClass: string; 
-  nextStatus?: OrderStatus;
-  nextActionLabel?: string;
-}> = {
-  NEW: { 
-    label: 'Новий прийом', 
+export const statusConfig: Record<
+  OrderStatus,
+  {
+    label: string;
+    badgeClass: string;
+    nextStatus?: OrderStatus;
+    nextActionLabel?: string;
+  }
+> = {
+  NEW: {
+    label: 'Новий прийом',
     badgeClass: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
     nextStatus: 'IN_DIAGNOSTICS',
     nextActionLabel: 'На діагностику'
   },
-  IN_DIAGNOSTICS: { 
-    label: 'Діагностика', 
+  IN_DIAGNOSTICS: {
+    label: 'Діагностика',
     badgeClass: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
     nextStatus: 'IN_PROGRESS',
     nextActionLabel: 'Взяти в ремонт'
   },
-  PENDING_APPROVAL: { 
-    label: 'Узгодження', 
+  PENDING_APPROVAL: {
+    label: 'Узгодження',
     badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     nextStatus: 'IN_PROGRESS',
     nextActionLabel: 'Погоджено'
   },
-  IN_PROGRESS: { 
-    label: 'В роботі', 
+  IN_PROGRESS: {
+    label: 'В роботі',
     badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
     nextStatus: 'READY_FOR_PICKUP',
     nextActionLabel: 'Готово до видачі'
   },
-  READY_FOR_PICKUP: { 
-    label: 'Готово до видачі', 
+  READY_FOR_PICKUP: {
+    label: 'Готово до видачі',
     badgeClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     nextStatus: 'COMPLETED',
     nextActionLabel: 'Видати клієнту'
   },
-  COMPLETED: { 
-    label: 'Видано', 
-    badgeClass: 'bg-slate-500/10 text-slate-400 border-slate-500/20' 
+  COMPLETED: {
+    label: 'Видано',
+    badgeClass: 'bg-slate-500/10 text-slate-400 border-slate-500/20'
   },
-  CANCELED: { 
-    label: 'Скасовано', 
-    badgeClass: 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
-  },
+  CANCELED: {
+    label: 'Скасовано',
+    badgeClass: 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+  }
 };
 
-export const OrderCard: React.FC<OrderCardProps> = ({ 
-  order, 
+export const OrderCard: React.FC<OrderCardProps> = ({
+  order,
   currentUser,
-  onStatusChange, 
-  onDeleteOrder 
+  onStatusChange,
+  onOpenDetails,
+  onDeleteOrder
 }) => {
   const [copied, setCopied] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -88,6 +95,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
   const DeviceIcon = getDeviceIcon(order.device.deviceType);
   const statusInfo = statusConfig[order.status];
+  const totalPartsQty = order.parts.reduce((sum, p) => sum + p.quantity, 0);
 
   const canAdvanceStatus = () => {
     if (!statusInfo.nextStatus) return false;
@@ -104,21 +112,26 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   };
 
   return (
-    <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:border-slate-700/80 transition-all duration-200 shadow-sm relative group">
+    <div
+      onClick={() => onOpenDetails(order)}
+      className="bg-[#111827] border border-slate-800 rounded-xl p-4 flex flex-col justify-between hover:border-indigo-500/50 transition-all duration-200 shadow-sm relative group cursor-pointer"
+    >
       <div>
         <div className="flex items-start justify-between gap-2 mb-3">
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-sm font-bold text-white tracking-tight">
+              <span className="font-mono text-sm font-bold text-white tracking-tight group-hover:text-indigo-300 transition-colors">
                 {order.orderNumber}
               </span>
-              <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded font-mono ${
-                order.priority === 'URGENT' 
-                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' 
-                  : order.priority === 'HIGH'
-                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                  : 'bg-slate-800 text-slate-400'
-              }`}>
+              <span
+                className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded font-mono ${
+                  order.priority === 'URGENT'
+                    ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    : order.priority === 'HIGH'
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    : 'bg-slate-800 text-slate-400'
+                }`}
+              >
                 {order.priority === 'URGENT' ? 'Терміново' : order.priority === 'HIGH' ? 'Високий' : 'Звичайний'}
               </span>
             </div>
@@ -156,18 +169,40 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           </div>
         </div>
 
-        <div className="bg-slate-900/60 rounded-lg p-2.5 border border-slate-800/80 mb-3">
+        <div className="bg-slate-900/60 rounded-lg p-2.5 border border-slate-800/80 mb-2.5">
           <span className="text-[10px] text-slate-500 font-medium uppercase block mb-1">
             Заявлена несправність
           </span>
-          <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
-            {order.defectDescription}
-          </p>
+          <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">{order.defectDescription}</p>
           {order.diagnosticsNotes && (
             <p className="text-[11px] text-amber-300/80 mt-1 border-t border-slate-800/80 pt-1 italic line-clamp-1">
               Діагностика: {order.diagnosticsNotes}
             </p>
           )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 mb-3 text-[11px]">
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border ${
+              totalPartsQty > 0
+                ? 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+                : 'bg-slate-900 text-slate-500 border-slate-800'
+            }`}
+          >
+            <Package className="h-3 w-3" />
+            <span>Запчастин: {totalPartsQty} шт.</span>
+          </span>
+
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border ${
+              order.services.length > 0
+                ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                : 'bg-slate-900 text-slate-500 border-slate-800'
+            }`}
+          >
+            <Wrench className="h-3 w-3" />
+            <span>Робіт: {order.services.length}</span>
+          </span>
         </div>
 
         <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 mb-3 pt-1">
@@ -182,17 +217,30 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         </div>
       </div>
 
-      <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2 mt-auto">
+      <div
+        className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2 mt-auto"
+        onClick={e => e.stopPropagation()}
+      >
         <div>
           <span className="text-[10px] text-slate-500 block uppercase font-medium">До сплати</span>
           <span className="text-base font-bold text-white font-mono">{order.totalCost} ₴</span>
         </div>
 
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => onOpenDetails(order)}
+            className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1"
+            title="Відкрити картку ремонту, списати запчастини та послуги"
+          >
+            <Wrench className="h-3 w-3 text-indigo-400" />
+            <span>Ремонт</span>
+          </button>
+
           {canAdvanceStatus() && statusInfo.nextStatus && (
             <button
               onClick={() => onStatusChange(order.id, statusInfo.nextStatus!)}
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1 active:scale-95"
+              className="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white shadow-sm transition-all flex items-center gap-1 active:scale-95"
             >
               <span>{statusInfo.nextActionLabel}</span>
               <ArrowRight className="h-3 w-3" />
@@ -209,22 +257,34 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             </button>
 
             {menuOpen && (
-              <div 
+              <div
                 className="absolute right-0 bottom-full mb-1 w-48 bg-slate-900 border border-slate-700/80 rounded-lg shadow-xl py-1 z-20 text-xs"
                 onMouseLeave={() => setMenuOpen(false)}
               >
                 <button
-                  onClick={() => { alert(`Друк квитанції для ${order.orderNumber}`); setMenuOpen(false); }}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onOpenDetails(order);
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                >
+                  <Package className="h-3.5 w-3.5 text-blue-400" />
+                  <span>Запчастини та кошторис</span>
+                </button>
+                <button
+                  onClick={() => {
+                    alert(`Друк квитанції для ${order.orderNumber}`);
+                    setMenuOpen(false);
+                  }}
                   className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800 flex items-center gap-2"
                 >
                   <Printer className="h-3.5 w-3.5 text-slate-400" />
                   <span>Друк квитанції</span>
                 </button>
                 <button
-                  onClick={() => { 
-                    navigator.clipboard.writeText(order.trackingCode); 
-                    alert(`Код ${order.trackingCode} скопійовано!`); 
-                    setMenuOpen(false); 
+                  onClick={() => {
+                    navigator.clipboard.writeText(order.trackingCode);
+                    setMenuOpen(false);
                   }}
                   className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-slate-800 flex items-center gap-2"
                 >

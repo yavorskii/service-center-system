@@ -1,6 +1,7 @@
 import type { 
   Order, 
   SparePart, 
+  ServiceCatalogItem,
   CreateOrderPayload, 
   OrderStatus, 
   AuthUser, 
@@ -17,6 +18,23 @@ const API_BASE_URL = typeof window !== 'undefined' && window.location.port === '
   : 'http://localhost:8080/api/v1';
 
 let authToken: string | null = typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null;
+
+function getToken(): string | null {
+  return authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+}
+
+function isNetworkFailure(err: any): boolean {
+  const msg = String(err?.message || '');
+  return msg === 'Failed to fetch' || msg.includes('NetworkError') || msg.includes('Load failed');
+}
+
+async function extractErrorMessage(res: Response, fallback: string): Promise<string> {
+  const errData = await res.json().catch(() => null);
+  if (errData?.validationErrors && typeof errData.validationErrors === 'object') {
+    return Object.values(errData.validationErrors).join(', ');
+  }
+  return errData?.message || fallback;
+}
 
 function mapBackendOrderToFrontend(item: any): Order {
   return {
@@ -39,6 +57,7 @@ function mapBackendOrderToFrontend(item: any): Order {
       imei: item.device?.imei,
       appearanceNotes: item.device?.appearanceNotes
     },
+    technicianId: item.technicianId || undefined,
     technicianName: item.technicianName || undefined,
     status: item.status,
     priority: item.priority || 'MEDIUM',
@@ -50,16 +69,30 @@ function mapBackendOrderToFrontend(item: any): Order {
     completedAt: item.completedAt ? item.completedAt.replace('T', ' ').substring(0, 16) : undefined,
     parts: (item.parts || []).map((p: any) => ({
       id: p.id,
+      sparePartId: p.sparePartId,
+      sku: p.sku,
       partName: p.name || p.partName,
       quantity: p.quantity,
       unitPrice: Number(p.unitPrice)
     })),
     services: (item.services || []).map((s: any) => ({
       id: s.id,
+      serviceId: s.serviceId,
       serviceName: s.name || s.serviceName,
-      price: Number(s.price)
+      price: Number(s.price),
+      status: s.status
     }))
   };
+}
+
+function recalculateMockOrderTotal(order: Order): void {
+  const partsSum = order.parts.reduce((acc, p) => acc + p.unitPrice * p.quantity, 0);
+  const servicesSum = order.services.reduce((acc, s) => acc + s.price, 0);
+  if (order.parts.length === 0 && order.services.length === 0) {
+    order.totalCost = order.estimatedCost || 0;
+  } else {
+    order.totalCost = partsSum + servicesSum;
+  }
 }
 
 let mockOrders: Order[] = [
@@ -83,6 +116,7 @@ let mockOrders: Order[] = [
       appearanceNotes: 'Дрібні подряпини на верхній кришці',
       specs: { cpu: 'Ryzen 9', ram: '16GB', ssd: '1TB' }
     },
+    technicianId: 3,
     technicianName: 'Тарас Бондаренко',
     status: 'IN_PROGRESS',
     priority: 'MEDIUM',
@@ -92,10 +126,10 @@ let mockOrders: Order[] = [
     totalCost: 850,
     createdAt: '2026-09-21 10:30',
     parts: [
-      { id: 1, partName: 'Термопаста Arctic MX-4 (4г)', quantity: 1, unitPrice: 250 }
+      { id: 1, sparePartId: 1, sku: 'TH-MX4-4G', partName: 'Термопаста Arctic MX-4 (4г)', quantity: 1, unitPrice: 250 }
     ],
     services: [
-      { id: 1, serviceName: 'Комплексна чистка та заміна термопасти', price: 600 }
+      { id: 1, serviceId: 1, serviceName: 'Комплексна чистка та заміна термопасти', price: 600 }
     ]
   },
   {
@@ -118,6 +152,7 @@ let mockOrders: Order[] = [
       appearanceNotes: 'Тріщина на склі дисплея, камери цілі',
       specs: { color: 'Sierra Blue', storage: '256GB' }
     },
+    technicianId: 4,
     technicianName: 'Дмитро Мельник',
     status: 'READY_FOR_PICKUP',
     priority: 'HIGH',
@@ -128,10 +163,10 @@ let mockOrders: Order[] = [
     createdAt: '2026-09-21 14:15',
     completedAt: '2026-09-22 17:00',
     parts: [
-      { id: 2, partName: 'Дисплейний модуль iPhone 13 Pro (OEM)', quantity: 1, unitPrice: 4000 }
+      { id: 2, sparePartId: 2, sku: 'DISP-IPH13P-OEM', partName: 'Дисплейний модуль iPhone 13 Pro (OEM)', quantity: 1, unitPrice: 4000 }
     ],
     services: [
-      { id: 2, serviceName: 'Заміна дисплейного модуля смартфона', price: 800 }
+      { id: 2, serviceId: 2, serviceName: 'Заміна дисплейного модуля смартфона', price: 800 }
     ]
   },
   {
@@ -152,6 +187,7 @@ let mockOrders: Order[] = [
       serialNumber: 'SN-SMG-44122',
       appearanceNotes: 'Без видимих пошкоджень'
     },
+    technicianId: 3,
     technicianName: 'Тарас Бондаренко',
     status: 'NEW',
     priority: 'MEDIUM',
@@ -161,94 +197,34 @@ let mockOrders: Order[] = [
     createdAt: '2026-09-22 09:00',
     parts: [],
     services: []
-  },
-  {
-    id: 4,
-    orderNumber: 'SRV-2026-0004',
-    trackingCode: 'TRK-E9A22F',
-    client: {
-      id: 4,
-      fullName: 'Олексій Мельник',
-      phone: '+380679998877',
-      email: 'oleksiy@example.com'
-    },
-    device: {
-      id: 4,
-      deviceType: 'Ноутбук',
-      brand: 'Lenovo',
-      model: 'ThinkPad T14',
-      serialNumber: 'SN-LNV-88219',
-      appearanceNotes: 'Потертості на кутах'
-    },
-    technicianName: 'Дмитро Мельник',
-    status: 'COMPLETED',
-    priority: 'HIGH',
-    defectDescription: 'Не вмикається після стрибка напруги в мережі',
-    diagnosticsNotes: 'Замінено вхідний контролер живлення BQ24780S.',
-    estimatedCost: 1200,
-    totalCost: 1200,
-    createdAt: '2026-09-20 11:00',
-    completedAt: '2026-09-21 16:30',
-    parts: [],
-    services: []
-  },
-  {
-    id: 5,
-    orderNumber: 'SRV-2026-0005',
-    trackingCode: 'TRK-D4E12A',
-    client: {
-      id: 1,
-      fullName: 'Іван Сидоренко',
-      phone: '+380671234567',
-      email: 'ivan.sydor@gmail.com',
-      notes: 'Постійний клієнт, знижка 5%'
-    },
-    device: {
-      id: 5,
-      deviceType: 'Навушники',
-      brand: 'Sony',
-      model: 'WH-1000XM4',
-      serialNumber: 'SN-SNY-31245',
-      appearanceNotes: 'Затертий лівий амбушюр, не тримає заряд',
-      specs: { type: 'Over-ear', wireless: 'Bluetooth 5.0' }
-    },
-    technicianName: 'Дмитро Мельник',
-    status: 'READY_FOR_PICKUP',
-    priority: 'MEDIUM',
-    defectDescription: 'Швидко сідає акумулятор (тримає 20 хв)',
-    diagnosticsNotes: 'Заміна акумулятора виконана, протестовано автономність 24 год.',
-    estimatedCost: 650,
-    totalCost: 650,
-    createdAt: '2026-09-24 11:00',
-    completedAt: '2026-09-25 15:30',
-    parts: [
-      { id: 3, partName: 'Акумулятор для навушників Sony WH-1000XM4', quantity: 1, unitPrice: 350 }
-    ],
-    services: [
-      { id: 4, serviceName: 'Заміна елемента живлення та калібрування', price: 300 }
-    ]
   }
 ];
 
 let mockSpareParts: SparePart[] = [
   { id: 1, sku: 'TH-MX4-4G', name: 'Термопаста Arctic MX-4 (4г)', category: 'Витратні матеріали', stockQuantity: 15, minStockLimit: 3, retailPrice: 250, purchasePrice: 150 },
-  { id: 2, sku: 'DISP-IPH13P-OEM', name: 'Дисплейний модуль iPhone 13 Pro (OEM)', category: 'Дисплеї', stockQuantity: 4, minStockLimit: 1, retailPrice: 4000, purchasePrice: 2800 },
+  { id: 2, sku: 'DISP-IPH13P-OEM', name: 'Дисплейний модуль iPhone 13 Pro (OEM)', category: 'Дисплеї', stockQuantity: 4, minStockLimit: 2, retailPrice: 4000, purchasePrice: 2800 },
   { id: 3, sku: 'BAT-SAM-S8', name: 'Акумулятор Samsung Galaxy Tab S8', category: 'Акумулятори', stockQuantity: 6, minStockLimit: 2, retailPrice: 1400, purchasePrice: 900 },
-  { id: 4, sku: 'CON-TYPEC-GEN', name: 'Роз\'єм живлення USB Type-C', category: 'Роз\'єми', stockQuantity: 50, minStockLimit: 10, retailPrice: 120, purchasePrice: 35 }
+  { id: 4, sku: 'CON-TYPEC-GEN', name: 'Роз\'єм живлення USB Type-C', category: 'Шлейфи та роз\'єми', stockQuantity: 50, minStockLimit: 10, retailPrice: 120, purchasePrice: 35 }
+];
+
+let mockServiceCatalog: ServiceCatalogItem[] = [
+  { id: 1, name: 'Комплексна чистка та заміна термопасти', description: 'Розбирання, видалення пилу, нанесення термопасти', standardPrice: 600 },
+  { id: 2, name: 'Заміна дисплейного модуля смартфона', description: 'Демонтаж пошкодженого екрана, проклейка та калібрування', standardPrice: 800 },
+  { id: 3, name: 'Ультразвукова чистка плати після рідини', description: 'Сушка, видалення оксидів в ультразвуковій ванні', standardPrice: 700 },
+  { id: 4, name: 'Апаратна діагностика вузлів', description: 'Тестування живлення та компонентів материнської плати', standardPrice: 250 }
 ];
 
 let mockClients: ClientRecord[] = [
   { id: 1, fullName: 'Іван Сидоренко', phone: '+380671234567', email: 'ivan.sydor@gmail.com', address: 'м. Київ, вул. Хрещатик, 10', notes: 'Постійний клієнт, знижка 5%', ordersCount: 2 },
   { id: 2, fullName: 'Марія Василенко', phone: '+380509876543', email: 'mariya.vas@ukr.net', address: 'м. Київ, пр. Перемоги, 45', notes: 'Корпоративний клієнт (ТОВ Альфа)', ordersCount: 1 },
-  { id: 3, fullName: 'Сергій Павленко', phone: '+380631122334', email: 'pavlenko.s@gmail.com', address: 'м. Івано-Франківськ, вул. Незалежності, 12', notes: 'Термінове обслуговування', ordersCount: 1 },
-  { id: 4, fullName: 'Олексій Мельник', phone: '+380679998877', email: 'oleksiy@example.com', address: 'м. Львів, вул. Городоцька, 82', notes: 'Звернення по гарантії', ordersCount: 1 }
+  { id: 3, fullName: 'Сергій Павленко', phone: '+380631122334', email: 'pavlenko.s@gmail.com', address: 'м. Івано-Франківськ, вул. Незалежності, 12', notes: 'Термінове обслуговування', ordersCount: 1 }
 ];
 
 let mockStaff: StaffMember[] = [
   { id: 1, username: 'admin_oleg', fullName: 'Олег Петренко', role: 'ROLE_ADMIN', phone: '+380671112233', email: 'admin@repairhub.ua', emailVerified: true, isActive: true, createdAt: '2026-09-01' },
   { id: 2, username: 'mgr_alina', fullName: 'Аліна Ковальчук', role: 'ROLE_MANAGER', phone: '+380502223344', email: 'manager@repairhub.ua', emailVerified: true, isActive: true, createdAt: '2026-09-05' },
   { id: 3, username: 'tech_taras', fullName: 'Тарас Бондаренко', role: 'ROLE_TECHNICIAN', phone: '+380633334455', email: 'tech@repairhub.ua', emailVerified: true, isActive: true, createdAt: '2026-09-10' },
-  { id: 4, username: 'user_vlad', fullName: 'Владислав Яворський', role: 'ROLE_USER', phone: '+380991234567', email: 'vlad@repairhub.ua', emailVerified: true, isActive: true, createdAt: '2026-10-26' }
+  { id: 4, username: 'tech_dmytro', fullName: 'Дмитро Мельник', role: 'ROLE_TECHNICIAN', phone: '+380994445566', email: 'dmytro@repairhub.ua', emailVerified: true, isActive: true, createdAt: '2026-09-12' }
 ];
 
 export const api = {
@@ -294,7 +270,7 @@ export const api = {
       const errData = await res.json().catch(() => null);
       throw new Error(errData?.message || "Невірне ім'я користувача або пароль");
     } catch (err: any) {
-      if (err.message && err.message !== 'Failed to fetch' && !err.message.includes('NetworkError') && !err.message.includes('Load failed')) {
+      if (!isNetworkFailure(err)) {
         throw err;
       }
       const validAccounts: Record<string, { pass: string; role: string; name: string }> = {
@@ -372,25 +348,25 @@ export const api = {
     });
     if (res.ok) {
       const data = await res.json();
-      authToken = data.token;
       const user: AuthUser = {
         username: data.username,
         fullName: data.fullName,
         role: data.role,
-        token: data.token,
+        token: data.token || '',
         email: data.email,
         emailVerified: data.emailVerified,
         twoFactorEnabled: data.twoFactorEnabled
       };
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('repairhub_token', data.token);
-        localStorage.setItem('repairhub_user', JSON.stringify(user));
+      if (data.token) {
+        authToken = data.token;
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('repairhub_token', data.token);
+          localStorage.setItem('repairhub_user', JSON.stringify(user));
+        }
       }
       return user;
     }
-    const errData = await res.json().catch(() => null);
-    const msg = errData?.message || (errData?.validationErrors ? Object.values(errData.validationErrors).join(', ') : 'Помилка реєстрації');
-    throw new Error(msg);
+    throw new Error(await extractErrorMessage(res, 'Помилка реєстрації'));
   },
 
   async activateAccount(token: string): Promise<string> {
@@ -403,8 +379,7 @@ export const api = {
       const data = await res.json();
       return data.message || 'Обліковий запис успішно активовано';
     }
-    const errData = await res.json().catch(() => null);
-    throw new Error(errData?.message || 'Невірний або прострочений токен активації');
+    throw new Error(await extractErrorMessage(res, 'Невірний або прострочений токен активації'));
   },
 
   async forgotPassword(email: string): Promise<string> {
@@ -417,8 +392,7 @@ export const api = {
       const data = await res.json();
       return data.message || 'Інструкції для відновлення пароля надіслано на email';
     }
-    const errData = await res.json().catch(() => null);
-    throw new Error(errData?.message || 'Помилка надсилання запиту');
+    throw new Error(await extractErrorMessage(res, 'Помилка надсилання запиту'));
   },
 
   async resetPassword(token: string, newPassword: string): Promise<string> {
@@ -431,8 +405,7 @@ export const api = {
       const data = await res.json();
       return data.message || 'Пароль успішно змінено';
     }
-    const errData = await res.json().catch(() => null);
-    throw new Error(errData?.message || 'Невірний або прострочений токен відновлення');
+    throw new Error(await extractErrorMessage(res, 'Невірний або прострочений токен відновлення'));
   },
 
   async verify2FA(username: string, code: string, tempToken: string): Promise<AuthUser> {
@@ -459,15 +432,14 @@ export const api = {
       }
       return user;
     }
-    const errData = await res.json().catch(() => null);
-    throw new Error(errData?.message || 'Невірний код 2FA');
+    throw new Error(await extractErrorMessage(res, 'Невірний код 2FA'));
   },
 
   async loginOAuth(provider: string, email: string, name: string): Promise<AuthUser> {
     const res = await fetch(`${API_BASE_URL}/auth/oauth`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider, email, fullName: name, externalId: `${provider}_${Date.now()}` })
+      body: JSON.stringify({ provider, email, fullName: name, externalId: `${provider}_${email.toLowerCase()}` })
     });
     if (res.ok) {
       const data = await res.json();
@@ -487,8 +459,7 @@ export const api = {
       }
       return user;
     }
-    const errData = await res.json().catch(() => null);
-    throw new Error(errData?.message || 'Помилка OAuth входу');
+    throw new Error(await extractErrorMessage(res, 'Помилка OAuth входу'));
   },
 
   async getMockEmails(): Promise<MockEmail[]> {
@@ -513,7 +484,7 @@ export const api = {
   },
 
   async getSecurityAuditLogs(): Promise<SecurityAuditLog[]> {
-    const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+    const token = getToken();
     const res = await fetch(`${API_BASE_URL}/security/audit-logs`, {
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -526,27 +497,33 @@ export const api = {
   },
 
   async lockUser(id: number): Promise<void> {
-    const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
-    await fetch(`${API_BASE_URL}/security/users/${id}/lock`, {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/security/users/${id}/lock`, {
       method: 'POST',
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       }
     });
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Не вдалося заблокувати користувача'));
+    }
   },
 
   async unlockUser(id: number): Promise<void> {
-    const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
-    await fetch(`${API_BASE_URL}/security/users/${id}/unlock`, {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/security/users/${id}/unlock`, {
       method: 'POST',
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       }
     });
+    if (!res.ok) {
+      throw new Error(await extractErrorMessage(res, 'Не вдалося розблокувати користувача'));
+    }
   },
 
   async getUserProfile(): Promise<UserSecurityProfile> {
-    const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+    const token = getToken();
     const res = await fetch(`${API_BASE_URL}/profile`, {
       headers: {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -559,7 +536,7 @@ export const api = {
   },
 
   async toggleTwoFactor(enabled: boolean): Promise<UserSecurityProfile> {
-    const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+    const token = getToken();
     const res = await fetch(`${API_BASE_URL}/profile/2fa/toggle`, {
       method: 'POST',
       headers: {
@@ -576,7 +553,7 @@ export const api = {
 
   async getOrders(): Promise<Order[]> {
     try {
-      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+      const token = getToken();
       const res = await fetch(`${API_BASE_URL}/orders`, {
         headers: {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -592,22 +569,50 @@ export const api = {
     return [...mockOrders];
   },
 
+  async getOrderById(orderId: number): Promise<Order> {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Accept': 'application/json'
+        }
+      });
+      if (res.ok) {
+        return mapBackendOrderToFrontend(await res.json());
+      }
+      throw new Error(await extractErrorMessage(res, 'Замовлення не знайдено'));
+    } catch (err: any) {
+      if (!isNetworkFailure(err)) throw err;
+      const found = mockOrders.find(o => o.id === orderId);
+      if (found) return { ...found };
+      throw new Error('Замовлення не знайдено');
+    }
+  },
+
   async getOrdersByPhoneOrTracking(query: string): Promise<Order[]> {
-    const q = query.trim().toUpperCase();
+    const q = query.trim();
     if (!q) return [];
     try {
-      const res = await fetch(`${API_BASE_URL}/tracking/${encodeURIComponent(q)}`);
+      const res = await fetch(`${API_BASE_URL}/tracking/search?query=${encodeURIComponent(q)}`);
       if (res.ok) {
         const data = await res.json();
         return Array.isArray(data) ? data.map(mapBackendOrderToFrontend) : [mapBackendOrderToFrontend(data)];
       }
+      const singleRes = await fetch(`${API_BASE_URL}/tracking/${encodeURIComponent(q)}`);
+      if (singleRes.ok) {
+        const data = await singleRes.json();
+        return [mapBackendOrderToFrontend(data)];
+      }
+      return [];
     } catch {
+      const upper = q.toUpperCase();
+      return mockOrders.filter(o =>
+        o.trackingCode.toUpperCase().includes(upper) ||
+        o.orderNumber.toUpperCase().includes(upper) ||
+        o.client.phone.replace(/[\s\-()]/g, '').includes(upper.replace(/[\s\-()]/g, ''))
+      );
     }
-    return mockOrders.filter(o => 
-      o.trackingCode.toUpperCase().includes(q) ||
-      o.orderNumber.toUpperCase().includes(q) ||
-      o.client.phone.replace(/[\s\-\(\)]/g, '').includes(q.replace(/[\s\-\(\)]/g, ''))
-    );
   },
 
   async getOrderByTrackingCode(code: string): Promise<Order | null> {
@@ -617,20 +622,24 @@ export const api = {
         const data = await res.json();
         return mapBackendOrderToFrontend(data);
       }
+      if (res.status === 404) {
+        return null;
+      }
     } catch {
     }
     const cleaned = code.trim().toUpperCase();
-    const order = mockOrders.find(o => 
-      o.trackingCode.toUpperCase() === cleaned || 
+    const order = mockOrders.find(o =>
+      o.trackingCode.toUpperCase() === cleaned ||
       o.orderNumber.toUpperCase() === cleaned
     );
     return order ? { ...order } : null;
   },
 
   async createOrder(payload: CreateOrderPayload): Promise<Order> {
+    const token = getToken();
+    const endpoint = token ? `${API_BASE_URL}/orders` : `${API_BASE_URL}/tracking/request`;
     try {
-      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
-      const res = await fetch(`${API_BASE_URL}/orders`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -654,50 +663,52 @@ export const api = {
         const data = await res.json();
         return mapBackendOrderToFrontend(data);
       }
-    } catch {
+      throw new Error(await extractErrorMessage(res, 'Не вдалося створити замовлення'));
+    } catch (err: any) {
+      if (!isNetworkFailure(err)) {
+        throw err;
+      }
+      const nextId = mockOrders.length > 0 ? Math.max(...mockOrders.map(o => o.id)) + 1 : 1;
+      const padNum = String(nextId).padStart(4, '0');
+      const orderNum = `SRV-2026-${padNum}`;
+      const trackCode = `TRK-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+      const newOrder: Order = {
+        id: nextId,
+        orderNumber: orderNum,
+        trackingCode: trackCode,
+        client: {
+          id: nextId,
+          fullName: payload.clientName,
+          phone: payload.clientPhone,
+          email: payload.clientEmail
+        },
+        device: {
+          id: nextId,
+          deviceType: payload.deviceType,
+          brand: payload.brand,
+          model: payload.model,
+          serialNumber: payload.serialNumberOrImei,
+          appearanceNotes: payload.appearanceNotes
+        },
+        status: 'NEW',
+        priority: payload.priority,
+        defectDescription: payload.defectDescription,
+        estimatedCost: payload.estimatedCost,
+        totalCost: payload.estimatedCost,
+        createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        parts: [],
+        services: []
+      };
+
+      mockOrders = [newOrder, ...mockOrders];
+      return newOrder;
     }
-
-    const nextId = mockOrders.length > 0 ? Math.max(...mockOrders.map(o => o.id)) + 1 : 1;
-    const padNum = String(nextId).padStart(4, '0');
-    const orderNum = `SRV-2026-${padNum}`;
-    const trackCode = `TRK-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-    const newOrder: Order = {
-      id: nextId,
-      orderNumber: orderNum,
-      trackingCode: trackCode,
-      client: {
-        id: nextId,
-        fullName: payload.clientName,
-        phone: payload.clientPhone,
-        email: payload.clientEmail
-      },
-      device: {
-        id: nextId,
-        deviceType: payload.deviceType,
-        brand: payload.brand,
-        model: payload.model,
-        serialNumber: payload.serialNumberOrImei,
-        appearanceNotes: payload.appearanceNotes
-      },
-      technicianName: 'Тарас Бондаренко',
-      status: 'NEW',
-      priority: payload.priority,
-      defectDescription: payload.defectDescription,
-      estimatedCost: payload.estimatedCost,
-      totalCost: payload.estimatedCost,
-      createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      parts: [],
-      services: []
-    };
-
-    mockOrders = [newOrder, ...mockOrders];
-    return newOrder;
   },
 
   async updateOrderStatus(orderId: number, status: OrderStatus): Promise<Order> {
     try {
-      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+      const token = getToken();
       const res = await fetch(`${API_BASE_URL}/orders/${orderId}/status`, {
         method: 'PATCH',
         headers: {
@@ -710,35 +721,225 @@ export const api = {
         const data = await res.json();
         return mapBackendOrderToFrontend(data);
       }
-    } catch {
+      throw new Error(await extractErrorMessage(res, 'Не вдалося змінити статус замовлення'));
+    } catch (err: any) {
+      if (!isNetworkFailure(err)) throw err;
+      const found = mockOrders.find(o => o.id === orderId);
+      if (found) {
+        if (status === 'CANCELED' && found.status !== 'CANCELED') {
+          found.parts.forEach(op => {
+            const sp = mockSpareParts.find(p => p.id === op.sparePartId || p.name === op.partName);
+            if (sp) sp.stockQuantity += op.quantity;
+          });
+          found.parts = [];
+          found.totalCost = 0;
+        }
+        found.status = status;
+        return { ...found };
+      }
+      throw new Error('Замовлення не знайдено');
     }
-
-    const found = mockOrders.find(o => o.id === orderId);
-    if (found) {
-      found.status = status;
-      return { ...found };
-    }
-    throw new Error('Order not found');
   },
 
-  async deleteOrder(orderId: number): Promise<void> {
+  async updateOrderDiagnostics(
+    orderId: number,
+    payload: { diagnosticsNotes: string; technicianId?: number; estimatedCost?: number }
+  ): Promise<Order> {
     try {
-      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
-      await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/orders/${orderId}/diagnostics`, {
+        method: 'PATCH',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        return mapBackendOrderToFrontend(await res.json());
+      }
+      throw new Error(await extractErrorMessage(res, 'Помилка збереження діагностики'));
+    } catch (err: any) {
+      if (!isNetworkFailure(err)) throw err;
+      const found = mockOrders.find(o => o.id === orderId);
+      if (!found) throw new Error('Замовлення не знайдено');
+      found.diagnosticsNotes = payload.diagnosticsNotes;
+      if (payload.estimatedCost !== undefined) found.estimatedCost = payload.estimatedCost;
+      if (payload.technicianId) {
+        const tech = mockStaff.find(s => s.id === payload.technicianId);
+        if (tech) {
+          found.technicianId = tech.id;
+          found.technicianName = tech.fullName;
+        }
+      }
+      if (found.status === 'NEW' || found.status === 'IN_DIAGNOSTICS') {
+        found.status = 'IN_PROGRESS';
+      }
+      recalculateMockOrderTotal(found);
+      return { ...found };
+    }
+  },
+
+  async addPartToOrder(orderId: number, sparePartId: number, quantity: number): Promise<Order> {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/orders/${orderId}/parts`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ sparePartId, quantity })
+      });
+      if (res.ok) {
+        return mapBackendOrderToFrontend(await res.json());
+      }
+      throw new Error(await extractErrorMessage(res, 'Помилка списання деталі зі складу'));
+    } catch (err: any) {
+      if (!isNetworkFailure(err)) throw err;
+      const found = mockOrders.find(o => o.id === orderId);
+      const sp = mockSpareParts.find(p => p.id === sparePartId);
+      if (!found || !sp) throw new Error('Замовлення або деталь не знайдено');
+      if (sp.stockQuantity < quantity) {
+        throw new Error(`Недостатньо деталей на складі для "${sp.name}": доступно ${sp.stockQuantity} шт.`);
+      }
+      sp.stockQuantity -= quantity;
+      const existing = found.parts.find(p => p.sparePartId === sparePartId);
+      if (existing) {
+        existing.quantity += quantity;
+      } else {
+        found.parts.push({
+          id: Date.now(),
+          sparePartId: sp.id,
+          sku: sp.sku,
+          partName: sp.name,
+          quantity,
+          unitPrice: sp.retailPrice
+        });
+      }
+      if (found.status === 'NEW' || found.status === 'IN_DIAGNOSTICS') {
+        found.status = 'IN_PROGRESS';
+      }
+      recalculateMockOrderTotal(found);
+      return { ...found, parts: [...found.parts] };
+    }
+  },
+
+  async removePartFromOrder(orderId: number, orderPartId: number): Promise<Order> {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/orders/${orderId}/parts/${orderPartId}`, {
         method: 'DELETE',
         headers: {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         }
       });
-    } catch {
+      if (res.ok) {
+        return mapBackendOrderToFrontend(await res.json());
+      }
+      throw new Error(await extractErrorMessage(res, 'Не вдалося повернути деталь на склад'));
+    } catch (err: any) {
+      if (!isNetworkFailure(err)) throw err;
+      const found = mockOrders.find(o => o.id === orderId);
+      if (!found) throw new Error('Замовлення не знайдено');
+      const target = found.parts.find(p => p.id === orderPartId);
+      if (target) {
+        const sp = mockSpareParts.find(p => p.id === target.sparePartId || p.name === target.partName);
+        if (sp) sp.stockQuantity += target.quantity;
+        found.parts = found.parts.filter(p => p.id !== orderPartId);
+      }
+      recalculateMockOrderTotal(found);
+      return { ...found, parts: [...found.parts] };
+    }
+  },
+
+  async addServiceToOrder(
+    orderId: number,
+    payload: { serviceId?: number; customServiceName?: string; price?: number }
+  ): Promise<Order> {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/orders/${orderId}/services`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        return mapBackendOrderToFrontend(await res.json());
+      }
+      throw new Error(await extractErrorMessage(res, 'Не вдалося додати роботу до замовлення'));
+    } catch (err: any) {
+      if (!isNetworkFailure(err)) throw err;
+      const found = mockOrders.find(o => o.id === orderId);
+      if (!found) throw new Error('Замовлення не знайдено');
+      const cat = payload.serviceId ? mockServiceCatalog.find(s => s.id === payload.serviceId) : undefined;
+      const name = cat ? cat.name : (payload.customServiceName || 'Послуга ремонту');
+      const price = payload.price !== undefined ? payload.price : (cat?.standardPrice || 0);
+      found.services.push({
+        id: Date.now(),
+        serviceId: cat?.id,
+        serviceName: name,
+        price
+      });
+      if (found.status === 'NEW' || found.status === 'IN_DIAGNOSTICS') {
+        found.status = 'IN_PROGRESS';
+      }
+      recalculateMockOrderTotal(found);
+      return { ...found, services: [...found.services] };
+    }
+  },
+
+  async removeServiceFromOrder(orderId: number, orderServiceId: number): Promise<Order> {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/orders/${orderId}/services/${orderServiceId}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
+      if (res.ok) {
+        return mapBackendOrderToFrontend(await res.json());
+      }
+      throw new Error(await extractErrorMessage(res, 'Не вдалося видалити послугу'));
+    } catch (err: any) {
+      if (!isNetworkFailure(err)) throw err;
+      const found = mockOrders.find(o => o.id === orderId);
+      if (!found) throw new Error('Замовлення не знайдено');
+      found.services = found.services.filter(s => s.id !== orderServiceId);
+      recalculateMockOrderTotal(found);
+      return { ...found, services: [...found.services] };
+    }
+  },
+
+  async deleteOrder(orderId: number): Promise<void> {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
+      if (!res.ok) {
+        throw new Error(await extractErrorMessage(res, 'Помилка видалення замовлення'));
+      }
+    } catch (err: any) {
+      if (!isNetworkFailure(err)) throw err;
     }
     mockOrders = mockOrders.filter(o => o.id !== orderId);
   },
 
-  async getSpareParts(): Promise<SparePart[]> {
+  async getSpareParts(search?: string): Promise<SparePart[]> {
     try {
-      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
-      const res = await fetch(`${API_BASE_URL}/warehouse/parts`, {
+      const token = getToken();
+      const url = search
+        ? `${API_BASE_URL}/warehouse/parts?search=${encodeURIComponent(search)}`
+        : `${API_BASE_URL}/warehouse/parts`;
+      const res = await fetch(url, {
         headers: {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         }
@@ -763,7 +964,7 @@ export const api = {
 
   async createSparePart(part: Omit<SparePart, 'id'>): Promise<SparePart> {
     try {
-      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+      const token = getToken();
       const res = await fetch(`${API_BASE_URL}/warehouse/parts`, {
         method: 'POST',
         headers: {
@@ -774,7 +975,7 @@ export const api = {
       });
       if (res.ok) {
         const data = await res.json();
-        const created: SparePart = {
+        return {
           id: data.id,
           sku: data.sku,
           name: data.name,
@@ -784,21 +985,158 @@ export const api = {
           retailPrice: Number(data.retailPrice),
           purchasePrice: Number(data.purchasePrice)
         };
-        mockSpareParts = [created, ...mockSpareParts];
-        return created;
+      }
+      throw new Error(await extractErrorMessage(res, 'Не вдалося додати деталь на склад'));
+    } catch (err: any) {
+      if (!isNetworkFailure(err)) throw err;
+      const nextId = mockSpareParts.length > 0 ? Math.max(...mockSpareParts.map(p => p.id)) + 1 : 1;
+      const created: SparePart = { ...part, sku: part.sku.trim().toUpperCase(), id: nextId };
+      mockSpareParts = [created, ...mockSpareParts];
+      return created;
+    }
+  },
+
+  async updateSparePart(
+    id: number,
+    payload: { name: string; category: string; purchasePrice: number; retailPrice: number; minStockLimit: number }
+  ): Promise<SparePart> {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/warehouse/parts/${id}`, {
+        method: 'PUT',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          id: data.id,
+          sku: data.sku,
+          name: data.name,
+          category: data.category,
+          stockQuantity: data.stockQuantity,
+          minStockLimit: data.minStockLimit,
+          retailPrice: Number(data.retailPrice),
+          purchasePrice: Number(data.purchasePrice)
+        };
+      }
+      throw new Error(await extractErrorMessage(res, 'Не вдалося оновити картку деталі'));
+    } catch (err: any) {
+      if (!isNetworkFailure(err)) throw err;
+      const idx = mockSpareParts.findIndex(p => p.id === id);
+      if (idx === -1) throw new Error('Деталь не знайдено');
+      mockSpareParts[idx] = { ...mockSpareParts[idx], ...payload };
+      return { ...mockSpareParts[idx] };
+    }
+  },
+
+  async restockSparePart(id: number, quantityDelta: number): Promise<SparePart> {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/warehouse/parts/${id}/stock?quantity=${quantityDelta}`, {
+        method: 'PATCH',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return {
+          id: data.id,
+          sku: data.sku,
+          name: data.name,
+          category: data.category,
+          stockQuantity: data.stockQuantity,
+          minStockLimit: data.minStockLimit,
+          retailPrice: Number(data.retailPrice),
+          purchasePrice: Number(data.purchasePrice)
+        };
+      }
+      throw new Error(await extractErrorMessage(res, 'Помилка зміни залишку на складі'));
+    } catch (err: any) {
+      if (!isNetworkFailure(err)) throw err;
+      const sp = mockSpareParts.find(p => p.id === id);
+      if (!sp) throw new Error('Деталь не знайдено');
+      if (sp.stockQuantity + quantityDelta < 0) {
+        throw new Error('Залишок не може бути від\'ємним');
+      }
+      sp.stockQuantity += quantityDelta;
+      return { ...sp };
+    }
+  },
+
+  async deleteSparePart(id: number): Promise<void> {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/warehouse/parts/${id}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        }
+      });
+      if (!res.ok) {
+        throw new Error(await extractErrorMessage(res, 'Не вдалося видалити позицію зі складу'));
+      }
+    } catch (err: any) {
+      if (!isNetworkFailure(err)) throw err;
+    }
+    mockSpareParts = mockSpareParts.filter(p => p.id !== id);
+  },
+
+  async getServiceCatalog(): Promise<ServiceCatalogItem[]> {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/services`, {
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Accept': 'application/json'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          standardPrice: Number(s.standardPrice)
+        }));
       }
     } catch {
     }
+    return [...mockServiceCatalog];
+  },
 
-    const nextId = mockSpareParts.length > 0 ? Math.max(...mockSpareParts.map(p => p.id)) + 1 : 1;
-    const created: SparePart = { ...part, id: nextId };
-    mockSpareParts = [created, ...mockSpareParts];
-    return created;
+  async getTechnicians(): Promise<StaffMember[]> {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE_URL}/users/technicians`, {
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'Accept': 'application/json'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.map((u: any) => ({
+          id: u.id,
+          username: u.username,
+          fullName: u.fullName,
+          role: u.role,
+          phone: u.phone,
+          isActive: u.isActive
+        }));
+      }
+    } catch {
+    }
+    return mockStaff.filter(s => s.role === 'ROLE_TECHNICIAN');
   },
 
   async getClients(): Promise<ClientRecord[]> {
     try {
-      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+      const token = getToken();
       const res = await fetch(`${API_BASE_URL}/clients`, {
         headers: {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -824,7 +1162,7 @@ export const api = {
 
   async getStaff(): Promise<StaffMember[]> {
     try {
-      const token = authToken || (typeof window !== 'undefined' ? localStorage.getItem('repairhub_token') : null);
+      const token = getToken();
       const res = await fetch(`${API_BASE_URL}/users`, {
         headers: {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),

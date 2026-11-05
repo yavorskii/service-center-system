@@ -328,14 +328,48 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                       </div>
                     </div>
 
-                    <div className="bg-[#090D16] rounded-xl p-3.5 text-xs border border-slate-800/80">
-                      <div className="font-semibold text-slate-300 mb-1">Заявлена несправність:</div>
-                      <p className="text-slate-400 leading-relaxed">{order.defectDescription}</p>
-                      {order.diagnosticsNotes && (
-                        <div className="mt-2 pt-2 border-t border-slate-800 text-amber-300/90 text-xs">
-                          <b>Висновок майстра:</b> {order.diagnosticsNotes}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      <div className="bg-[#090D16] rounded-xl p-3.5 border border-slate-800/80">
+                        <div className="font-semibold text-slate-300 mb-1">Заявлена несправність:</div>
+                        <p className="text-slate-400 leading-relaxed">{order.defectDescription}</p>
+                        {order.diagnosticsNotes && (
+                          <div className="mt-2 pt-2 border-t border-slate-800 text-amber-300/90 text-xs">
+                            <b>Висновок майстра:</b> {order.diagnosticsNotes}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="bg-[#090D16] rounded-xl p-3.5 border border-slate-800/80 flex flex-col justify-between">
+                        <div>
+                          <div className="font-semibold text-slate-300 mb-2">Деталізація робіт та запчастин:</div>
+                          {order.parts.length === 0 && order.services.length === 0 ? (
+                            <p className="text-slate-500">Кошторис формується інженером після діагностики</p>
+                          ) : (
+                            <div className="space-y-1">
+                              {order.services.map((s, idx) => (
+                                <div key={`s-${idx}`} className="flex justify-between text-slate-300">
+                                  <span className="truncate pr-2">🛠 {s.serviceName}</span>
+                                  <span className="font-mono text-slate-200 shrink-0">{s.price} ₴</span>
+                                </div>
+                              ))}
+                              {order.parts.map((p, idx) => (
+                                <div key={`p-${idx}`} className="flex justify-between text-slate-300">
+                                  <span className="truncate pr-2">
+                                    📦 {p.partName} ({p.quantity} шт.)
+                                  </span>
+                                  <span className="font-mono text-slate-200 shrink-0">
+                                    {p.unitPrice * p.quantity} ₴
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      )}
+                        <div className="mt-2 pt-2 border-t border-slate-800 flex justify-between font-bold text-white">
+                          <span>Разом до сплати:</span>
+                          <span className="font-mono text-emerald-400">{order.totalCost} ₴</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
