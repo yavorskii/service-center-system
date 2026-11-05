@@ -8,6 +8,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ua.repairhub.dto.request.AddPartToOrderRequest;
+import ua.repairhub.dto.request.AddServiceToOrderRequest;
 import ua.repairhub.dto.request.CreateOrderRequest;
 import ua.repairhub.dto.response.OrderResponse;
 import ua.repairhub.exception.InsufficientStockException;
@@ -41,6 +42,12 @@ class OrderServiceTest {
     private OrderPartRepository orderPartRepository;
 
     @Mock
+    private ServiceRepository serviceRepository;
+
+    @Mock
+    private OrderServiceRepository orderServiceRepository;
+
+    @Mock
     private UserRepository userRepository;
 
     @InjectMocks
@@ -50,6 +57,7 @@ class OrderServiceTest {
     private Device mockDevice;
     private Order mockOrder;
     private SparePart mockPart;
+    private ServiceEntity mockServiceEntity;
 
     @BeforeEach
     void setUp() {
@@ -94,6 +102,12 @@ class OrderServiceTest {
                 .stockQuantity(10)
                 .minStockLimit(2)
                 .build();
+
+        mockServiceEntity = ServiceEntity.builder()
+                .id(5L)
+                .name("Комплексна чистка та заміна термопасти")
+                .standardPrice(BigDecimal.valueOf(600))
+                .build();
     }
 
     @Test
@@ -113,6 +127,7 @@ class OrderServiceTest {
 
         when(clientRepository.findByPhone(request.getClientPhone())).thenReturn(Optional.of(mockClient));
         when(deviceRepository.save(any(Device.class))).thenReturn(mockDevice);
+        when(orderRepository.findTopByOrderByIdDesc()).thenReturn(Optional.empty());
         when(orderRepository.count()).thenReturn(0L);
         when(orderRepository.save(any(Order.class))).thenReturn(mockOrder);
 
@@ -149,14 +164,72 @@ class OrderServiceTest {
 
         when(orderRepository.findById(1L)).thenReturn(Optional.of(mockOrder));
         when(sparePartRepository.findById(10L)).thenReturn(Optional.of(mockPart));
+        when(orderPartRepository.save(any(OrderPart.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         OrderResponse response = orderService.addPartToOrder(1L, request);
 
         assertNotNull(response);
         assertEquals(8, mockPart.getStockQuantity());
+        assertEquals(0, BigDecimal.valueOf(500).compareTo(response.getTotalCost()));
+        assertEquals(1, response.getParts().size());
+        assertEquals(OrderStatus.IN_PROGRESS, response.getStatus());
         verify(sparePartRepository, times(1)).save(mockPart);
         verify(orderPartRepository, times(1)).save(any(OrderPart.class));
+    }
+
+    @Test
+    @DisplayName("Додавання послуги та повернення запчастини на склад: точний перерахунок кошторису")
+    void addServiceAndReturnPart_RecalculatesAndRestoresStock() {
+        OrderPart existingPart = OrderPart.builder()
+                .id(100L)
+                .order(mockOrder)
+                .sparePart(mockPart)
+                .quantity(2)
+                .unitPrice(BigDecimal.valueOf(250))
+                .build();
+        mockPart.setStockQuantity(8);
+        mockOrder.getOrderParts().add(existingPart);
+
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(mockOrder));
+        when(serviceRepository.findById(5L)).thenReturn(Optional.of(mockServiceEntity));
+        when(orderServiceRepository.save(any(OrderServiceEntity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrderResponse afterService = orderService.addServiceToOrder(
+                1L,
+                AddServiceToOrderRequest.builder().serviceId(5L).build(),
+                null
+        );
+        assertEquals(0, BigDecimal.valueOf(1100).compareTo(afterService.getTotalCost()));
+
+        OrderResponse afterReturn = orderService.removePartFromOrder(1L, 100L);
+        assertEquals(10, mockPart.getStockQuantity());
+        assertEquals(0, BigDecimal.valueOf(600).compareTo(afterReturn.getTotalCost()));
+    }
+
+    @Test
+    @DisplayName("Скасування замовлення (CANCELED): автоматичне повернення списаних запчастин на склад")
+    void cancelOrder_RestoresWarehouseStock() {
+        OrderPart existingPart = OrderPart.builder()
+                .id(101L)
+                .order(mockOrder)
+                .sparePart(mockPart)
+                .quantity(3)
+                .unitPrice(BigDecimal.valueOf(250))
+                .build();
+        mockPart.setStockQuantity(7);
+        mockOrder.getOrderParts().add(existingPart);
+
+        when(orderRepository.findById(1L)).thenReturn(Optional.of(mockOrder));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrderResponse canceled = orderService.updateOrderStatus(1L, OrderStatus.CANCELED);
+
+        assertEquals(OrderStatus.CANCELED, canceled.getStatus());
+        assertEquals(10, mockPart.getStockQuantity());
+        assertEquals(0, BigDecimal.ZERO.compareTo(canceled.getTotalCost()));
+        assertTrue(canceled.getParts().isEmpty());
     }
 
     @Test

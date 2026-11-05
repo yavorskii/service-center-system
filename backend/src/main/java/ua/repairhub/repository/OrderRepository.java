@@ -20,8 +20,19 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
            "JOIN FETCH o.client " +
            "JOIN FETCH o.device " +
            "LEFT JOIN FETCH o.technician " +
-           "WHERE o.trackingCode = :trackingCode")
+           "WHERE UPPER(o.trackingCode) = UPPER(:trackingCode) " +
+           "OR UPPER(o.orderNumber) = UPPER(:trackingCode)")
     Optional<Order> findByTrackingCode(@Param("trackingCode") String trackingCode);
+
+    @Query("SELECT o FROM Order o " +
+           "JOIN FETCH o.client " +
+           "JOIN FETCH o.device " +
+           "LEFT JOIN FETCH o.technician " +
+           "WHERE UPPER(o.trackingCode) LIKE UPPER(CONCAT('%', :query, '%')) " +
+           "OR UPPER(o.orderNumber) LIKE UPPER(CONCAT('%', :query, '%')) " +
+           "OR o.client.phone LIKE CONCAT('%', :query, '%') " +
+           "ORDER BY o.createdAt DESC")
+    List<Order> publicSearchOrders(@Param("query") String query);
 
     List<Order> findByStatus(OrderStatus status);
 

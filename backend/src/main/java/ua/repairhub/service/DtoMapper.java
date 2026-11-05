@@ -3,6 +3,7 @@ package ua.repairhub.service;
 import ua.repairhub.dto.response.ClientResponse;
 import ua.repairhub.dto.response.DeviceResponse;
 import ua.repairhub.dto.response.OrderResponse;
+import ua.repairhub.dto.response.ServiceCatalogResponse;
 import ua.repairhub.dto.response.SparePartResponse;
 import ua.repairhub.model.*;
 
@@ -51,6 +52,16 @@ public class DtoMapper {
                 .stockQuantity(part.getStockQuantity())
                 .minStockLimit(part.getMinStockLimit())
                 .isLowStock(part.getStockQuantity() <= part.getMinStockLimit())
+                .build();
+    }
+
+    public static ServiceCatalogResponse toServiceCatalogResponse(ServiceEntity service) {
+        if (service == null) return null;
+        return ServiceCatalogResponse.builder()
+                .id(service.getId())
+                .name(service.getName())
+                .description(service.getDescription())
+                .standardPrice(service.getStandardPrice())
                 .build();
     }
 
