@@ -18,6 +18,12 @@ public class UserResponse {
     private String fullName;
     private Role role;
     private String phone;
+    private String email;
+    private Boolean emailVerified;
+    private Boolean isLocked;
+    private Integer failedLoginAttempts;
+    private Boolean twoFactorEnabled;
+    private String authProvider;
     private Boolean isActive;
     private ZonedDateTime createdAt;
 }

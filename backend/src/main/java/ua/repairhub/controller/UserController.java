@@ -9,8 +9,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import ua.repairhub.dto.response.UserResponse;
+import ua.repairhub.model.Role;
 import ua.repairhub.repository.UserRepository;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 
 @RestController
@@ -23,9 +25,39 @@ public class UserController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Отримати список співробітників", description = "Доступно лише для адміністратора")
+    @Operation(summary = "Отримати список усіх облікових записів", description = "Доступно лише для адміністратора")
     public ResponseEntity<List<UserResponse>> getAllUsers() {
+        ZonedDateTime now = ZonedDateTime.now();
         List<UserResponse> list = userRepository.findAll().stream()
+                .map(u -> {
+                    boolean effectivelyLocked = Boolean.TRUE.equals(u.getIsLocked())
+                            && (u.getLockedUntil() == null || now.isBefore(u.getLockedUntil()));
+                    return UserResponse.builder()
+                            .id(u.getId())
+                            .username(u.getUsername())
+                            .fullName(u.getFullName())
+                            .role(u.getRole())
+                            .phone(u.getPhone())
+                            .email(u.getEmail())
+                            .emailVerified(u.getEmailVerified())
+                            .isLocked(effectivelyLocked)
+                            .failedLoginAttempts(effectivelyLocked || Boolean.FALSE.equals(u.getIsLocked()) ? u.getFailedLoginAttempts() : 0)
+                            .twoFactorEnabled(u.getTwoFactorEnabled())
+                            .authProvider(u.getAuthProvider())
+                            .isActive(u.getIsActive())
+                            .createdAt(u.getCreatedAt())
+                            .build();
+                })
+                .toList();
+        return ResponseEntity.ok(list);
+    }
+
+    @GetMapping("/technicians")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'TECHNICIAN')")
+    @Operation(summary = "Отримати список інженерів-майстрів", description = "Для призначення відповідального майстра у замовленні")
+    public ResponseEntity<List<UserResponse>> getTechnicians() {
+        List<UserResponse> list = userRepository.findAll().stream()
+                .filter(u -> Boolean.TRUE.equals(u.getIsActive()) && u.getRole() == Role.ROLE_TECHNICIAN)
                 .map(u -> UserResponse.builder()
                         .id(u.getId())
                         .username(u.getUsername())

@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import ua.repairhub.dto.response.SecurityAuditResponse;
 import ua.repairhub.service.AuthService;
@@ -29,8 +30,9 @@ public class SecurityController {
 
     @PostMapping("/users/{id}/lock")
     @Operation(summary = "Блокування акаунта", description = "Примусове блокування облікового запису адміністратором")
-    public ResponseEntity<Map<String, String>> lockUser(@PathVariable Long id) {
-        authService.lockUser(id);
+    public ResponseEntity<Map<String, String>> lockUser(@PathVariable Long id, Authentication authentication) {
+        String adminUsername = authentication != null ? authentication.getName() : null;
+        authService.lockUser(id, adminUsername);
         return ResponseEntity.ok(Map.of("message", "Обліковий запис успішно заблоковано"));
     }
 

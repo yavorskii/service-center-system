@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import ua.repairhub.model.User;
 import ua.repairhub.repository.UserRepository;
 
+import java.time.ZonedDateTime;
 import java.util.Collections;
 
 @Service
@@ -22,13 +23,16 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Користувача '" + username + "' не знайдено"));
 
+        boolean accountNonLocked = !Boolean.TRUE.equals(user.getIsLocked())
+                || (user.getLockedUntil() != null && ZonedDateTime.now().isAfter(user.getLockedUntil()));
+
         return new org.springframework.security.core.userdetails.User(
                 user.getUsername(),
                 user.getPasswordHash(),
-                user.getIsActive(),
+                Boolean.TRUE.equals(user.getIsActive()),
                 true,
                 true,
-                true,
+                accountNonLocked,
                 Collections.singletonList(new SimpleGrantedAuthority(user.getRole().name()))
         );
     }
