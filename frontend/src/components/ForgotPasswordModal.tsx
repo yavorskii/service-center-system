@@ -1,20 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X, Key, Mail, AlertCircle, Check, Inbox } from 'lucide-react';
+import { X, Key, Mail, AlertCircle, Check } from 'lucide-react';
 import { api } from '../services/api';
 
 interface ForgotPasswordModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onOpenResetWithToken: (token?: string) => void;
-  onOpenInbox: () => void;
   onSwitchToLogin: () => void;
 }
 
 export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
   isOpen,
   onClose,
-  onOpenResetWithToken,
-  onOpenInbox,
   onSwitchToLogin
 }) => {
   const [email, setEmail] = useState('');
@@ -65,7 +61,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
           </div>
           <div>
             <h2 className="text-xl font-bold tracking-tight text-white">Відновлення пароля</h2>
-            <p className="text-xs text-slate-400">Скидання забутого пароля через Email</p>
+            <p className="text-xs text-slate-400">Скидання забутого пароля через електронну пошту</p>
           </div>
         </div>
 
@@ -87,37 +83,23 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              Перейдіть у симулятор поштової скриньки, щоб скопіювати токен скидання або перейти безпосередньо до форми встановлення нового пароля.
+              Перевірте поштову скриньку та перейдіть за одноразовим посиланням у листі (дійсне 15 хвилин), щоб встановити новий пароль.
             </p>
 
-            <div className="flex flex-col gap-2 pt-2">
+            <div className="pt-2">
               <button
                 type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenInbox();
-                }}
-                className="w-full py-2.5 px-4 rounded-xl font-medium text-sm text-white bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center gap-2 transition"
+                onClick={onSwitchToLogin}
+                className="w-full py-2.5 px-4 rounded-xl font-medium text-sm text-white bg-indigo-600 hover:bg-indigo-500 transition"
               >
-                <Inbox className="w-4 h-4 text-white" />
-                <span>Відкрити скриньку повідомлень</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenResetWithToken();
-                }}
-                className="w-full py-2.5 px-4 rounded-xl font-medium text-sm text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition"
-              >
-                Ввести токен скидання вручну
+                Повернутися до входу
               </button>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-sm text-slate-300 leading-relaxed">
-              Вкажіть адресу електронної пошти, прив'язану до вашого облікового запису. Ми надішлемо одноразове посилання з токеном для скидання пароля (термін дії: 15 хв).
+              Вкажіть електронну пошту, прив'язану до вашого облікового запису. Ми надішлемо лист із посиланням для встановлення нового пароля.
             </p>
 
             <div>
@@ -131,7 +113,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="vlad@repairhub.ua"
+                  placeholder="name@gmail.com"
                   className="w-full pl-9 pr-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500 transition"
                 />
               </div>
@@ -142,7 +124,7 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({
               disabled={!email.trim() || isSubmitting}
               className="w-full py-2.5 px-4 rounded-xl font-semibold text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25 transition duration-200"
             >
-              {isSubmitting ? 'Надсилання листа...' : 'Надіслати інструкції'}
+              {isSubmitting ? 'Надсилання листа...' : 'Надіслати посилання для скидання'}
             </button>
 
             <div className="text-center pt-2">

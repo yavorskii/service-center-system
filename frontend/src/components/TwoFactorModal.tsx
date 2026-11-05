@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldAlert, KeyRound, AlertCircle, Inbox } from 'lucide-react';
+import { X, ShieldAlert, KeyRound, AlertCircle } from 'lucide-react';
 import { api } from '../services/api';
 import type { AuthUser } from '../types';
 
@@ -9,7 +9,6 @@ interface TwoFactorModalProps {
   tempToken: string;
   onClose: () => void;
   onSuccess: (user: AuthUser) => void;
-  onOpenInbox: () => void;
 }
 
 export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
@@ -17,8 +16,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
   username,
   tempToken,
   onClose,
-  onSuccess,
-  onOpenInbox
+  onSuccess
 }) => {
   const [code, setCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -54,26 +52,6 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
     }
   };
 
-  const handleFetchLatestOtp = async () => {
-    try {
-      const emails = await api.getMockEmails();
-      const otpEmail = emails.find(e => e.type === 'TWO_FACTOR_OTP' || e.subject.includes('2FA') || e.subject.includes('Двофакторна'));
-      if (otpEmail) {
-        const otpValue = otpEmail.token && /^\d{6}$/.test(otpEmail.token)
-          ? otpEmail.token
-          : otpEmail.body.match(/\b\d{6}\b/)?.[0];
-        if (otpValue) {
-          setCode(otpValue);
-          setErrorMessage('');
-          return;
-        }
-      }
-      setErrorMessage('Нових листів з кодом 2FA не знайдено в скриньці');
-    } catch {
-      setErrorMessage('Не вдалося перевірити скриньку');
-    }
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
       <div className="relative w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 sm:p-8 text-slate-100">
@@ -89,7 +67,7 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
             <ShieldAlert className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-bold tracking-tight text-white">Двофакторна автентифікація</h2>
+            <h2 className="text-xl font-bold tracking-tight text-white">Двофакторна перевірка</h2>
             <p className="text-xs text-slate-400">Обліковий запис: <span className="font-semibold text-slate-200">{username}</span></p>
           </div>
         </div>
@@ -102,44 +80,27 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
         )}
 
         <p className="text-sm text-slate-300 mb-5 leading-relaxed">
-          Для безпеки вашого акаунта увімкнено 2FA. Введіть одноразовий 6-значний код перевірки (OTP), надісланий на прив'язану електронну пошту.
+          Ми надіслали одноразовий 6-значний код підтвердження на вашу електронну пошту. Введіть його нижче для завершення входу (код дійсний 5 хвилин).
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              6-значний код підтвердження *
+              6-значний код із листа *
             </label>
             <div className="relative">
               <KeyRound className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
               <input
                 type="text"
                 required
+                autoFocus
                 maxLength={6}
                 value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                placeholder="123456"
+                placeholder="000000"
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-lg text-center font-mono tracking-widest text-white focus:outline-none focus:border-amber-500 transition"
               />
             </div>
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleFetchLatestOtp}
-              className="flex-1 py-2 px-3 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center justify-center gap-1.5 transition"
-            >
-              <Inbox className="w-3.5 h-3.5 text-amber-400" />
-              <span>Отримати з пошти</span>
-            </button>
-            <button
-              type="button"
-              onClick={onOpenInbox}
-              className="py-2 px-3 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700 transition"
-            >
-              Переглянути скриньку
-            </button>
           </div>
 
           <button

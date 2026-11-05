@@ -66,7 +66,7 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
       setTimeout(() => {
         onClose();
         onSwitchToLogin();
-      }, 2000);
+      }, 1800);
     } catch (err: any) {
       setErrorMessage(err.message || 'Помилка скидання пароля');
     } finally {
@@ -91,8 +91,8 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
             <Key className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h2 className="text-xl font-bold tracking-tight text-white">Встановлення нового пароля</h2>
-            <p className="text-xs text-slate-400">Введіть токен відновлення та новий пароль</p>
+            <h2 className="text-xl font-bold tracking-tight text-white">Новий пароль</h2>
+            <p className="text-xs text-slate-400">Встановіть новий надійний пароль для акаунта</p>
           </div>
         </div>
 
@@ -110,23 +110,25 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({
             </div>
             <h3 className="text-base font-bold text-white">Пароль успішно змінено!</h3>
             <p className="text-xs text-slate-300">{successMessage}</p>
-            <p className="text-xs text-slate-400 pt-1">Перенаправлення до форми авторизації...</p>
+            <p className="text-xs text-slate-400 pt-1">Відкриваємо форму входу...</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                Токен відновлення *
-              </label>
-              <input
-                type="text"
-                required
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="Вставте токен з листа"
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs font-mono text-white focus:outline-none focus:border-indigo-500 transition"
-              />
-            </div>
+            {!initialToken && (
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  Токен відновлення *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  placeholder="Вставте токен із листа"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-xs font-mono text-white focus:outline-none focus:border-indigo-500 transition"
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1.5">

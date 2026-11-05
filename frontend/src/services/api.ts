@@ -462,6 +462,48 @@ export const api = {
     throw new Error(await extractErrorMessage(res, 'Помилка OAuth входу'));
   },
 
+  async getGoogleAuthUrl(): Promise<string> {
+    const redirectUri = typeof window !== 'undefined'
+      ? `${window.location.origin}/auth/google/callback`
+      : 'http://localhost:3000/auth/google/callback';
+    const res = await fetch(`${API_BASE_URL}/auth/google/url?redirectUri=${encodeURIComponent(redirectUri)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.url) return data.url;
+    }
+    throw new Error(await extractErrorMessage(res, 'Не вдалося ініціювати вхід через Google'));
+  },
+
+  async exchangeGoogleCode(code: string): Promise<AuthUser> {
+    const redirectUri = typeof window !== 'undefined'
+      ? `${window.location.origin}/auth/google/callback`
+      : 'http://localhost:3000/auth/google/callback';
+    const res = await fetch(`${API_BASE_URL}/auth/google/callback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, redirectUri })
+    });
+    if (res.ok) {
+      const data = await res.json();
+      authToken = data.token;
+      const user: AuthUser = {
+        username: data.username,
+        fullName: data.fullName,
+        role: data.role,
+        token: data.token,
+        email: data.email,
+        emailVerified: data.emailVerified,
+        twoFactorEnabled: data.twoFactorEnabled
+      };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('repairhub_token', data.token);
+        localStorage.setItem('repairhub_user', JSON.stringify(user));
+      }
+      return user;
+    }
+    throw new Error(await extractErrorMessage(res, 'Помилка авторизації через Google'));
+  },
+
   async getMockEmails(): Promise<MockEmail[]> {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/emails`);
