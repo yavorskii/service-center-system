@@ -63,29 +63,37 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
   const [searchAttempted, setSearchAttempted] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState('hero');
+  const [visibleSections, setVisibleSections] = useState<Record<string, boolean>>({
+    hero: true,
+    cabinet: true
+  });
 
   useEffect(() => {
     const sectionIds = currentUser
       ? ['cabinet', 'hero', 'services', 'workflow', 'about']
       : ['hero', 'services', 'workflow', 'about'];
 
-    const handleScroll = () => {
-      const scrollPos = window.scrollY + window.innerHeight / 2.5;
-      for (const id of sectionIds) {
-        const el = document.getElementById(id);
-        if (el) {
-          const top = el.offsetTop;
-          const height = el.offsetHeight;
-          if (scrollPos >= top && scrollPos < top + height) {
-            setActiveSection(id);
-            break;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setVisibleSections((prev) => ({ ...prev, [entry.target.id]: true }));
+            setActiveSection(entry.target.id);
           }
-        }
+        });
+      },
+      {
+        threshold: 0.2,
+        rootMargin: '0px 0px -15% 0px'
       }
-    };
+    );
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    sectionIds.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
   }, [currentUser]);
 
   const navSections = [
@@ -364,7 +372,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
 
       {currentUser && (
         <section id="cabinet" className="fullpage-section flex flex-col justify-center py-16 bg-gradient-to-b from-indigo-950/30 via-[#0F172A]/60 to-transparent border-b border-slate-800/80 relative">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 section-reveal ${visibleSections['cabinet'] ? 'active' : ''}`}>
             <div className="bg-[#111827] border border-indigo-500/25 rounded-2xl p-6 shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-5">
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
@@ -440,7 +448,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[380px] bg-gradient-to-tr from-blue-600/20 via-indigo-500/15 to-purple-600/20 rounded-full blur-[110px] pointer-events-none animate-pulse-glow -z-0" />
         <div className="absolute top-1/3 left-1/4 w-[320px] h-[320px] bg-sky-500/10 rounded-full blur-[90px] pointer-events-none animate-pulse-glow-delayed -z-0" />
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+        <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10 section-reveal ${visibleSections['hero'] ? 'active' : ''}`}>
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/80 border border-slate-700/80 text-slate-300 text-xs font-medium mb-6 shadow-lg shadow-blue-500/5 hover:border-blue-500/40 transition-all cursor-default">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -557,7 +565,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
       )}
 
       <section id="services" className="fullpage-section flex flex-col justify-center py-14 relative overflow-hidden border-b border-slate-800/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full section-reveal ${visibleSections['services'] ? 'active' : ''}`}>
           <div className="text-center max-w-3xl mx-auto mb-12">
             <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
               Послуги та орієнтовні ціни
@@ -704,7 +712,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
       </section>
 
       <section id="workflow" className="fullpage-section flex flex-col justify-center py-14 relative overflow-hidden border-b border-slate-800/80 bg-[#0F172A]/25">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full section-reveal ${visibleSections['workflow'] ? 'active' : ''}`}>
           <div className="text-center max-w-3xl mx-auto mb-10">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-semibold mb-3">
               <ClipboardList className="h-3.5 w-3.5" />
@@ -789,7 +797,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
       </section>
 
       <section id="about" className="fullpage-section flex flex-col justify-between pt-12 relative overflow-hidden bg-[#0F172A]/30 border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full my-auto py-6">
+        <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full my-auto py-6 section-reveal ${visibleSections['about'] ? 'active' : ''}`}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
             <div>
               <div className="inline-block text-xs font-bold text-blue-400 uppercase tracking-wider mb-2">
