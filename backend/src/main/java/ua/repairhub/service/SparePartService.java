@@ -4,10 +4,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ua.repairhub.dto.request.CreateSparePartRequest;
+import ua.repairhub.dto.request.UpdateSparePartRequest;
 import ua.repairhub.dto.response.SparePartResponse;
+import ua.repairhub.exception.BadRequestException;
 import ua.repairhub.exception.DuplicateResourceException;
 import ua.repairhub.exception.ResourceNotFoundException;
 import ua.repairhub.model.SparePart;
+import ua.repairhub.repository.OrderPartRepository;
 import ua.repairhub.repository.SparePartRepository;
 
 import java.util.List;
@@ -18,6 +21,7 @@ import java.util.stream.Collectors;
 public class SparePartService {
 
     private final SparePartRepository sparePartRepository;
+    private final OrderPartRepository orderPartRepository;
 
     @Transactional(readOnly = true)
     public List<SparePartResponse> getAllParts(String query) {
@@ -35,18 +39,19 @@ public class SparePartService {
 
     @Transactional
     public SparePartResponse createPart(CreateSparePartRequest request) {
-        if (sparePartRepository.existsBySku(request.getSku())) {
-            throw new DuplicateResourceException("Деталь з артикулом " + request.getSku() + " вже існує на складі");
+        String normalizedSku = request.getSku().trim().toUpperCase();
+        if (sparePartRepository.existsBySku(normalizedSku)) {
+            throw new DuplicateResourceException("Деталь з артикулом " + normalizedSku + " вже існує на складі");
         }
 
         SparePart part = SparePart.builder()
-                .sku(request.getSku())
-                .name(request.getName())
-                .category(request.getCategory())
+                .sku(normalizedSku)
+                .name(request.getName().trim())
+                .category(request.getCategory().trim())
                 .purchasePrice(request.getPurchasePrice())
                 .retailPrice(request.getRetailPrice())
                 .stockQuantity(request.getStockQuantity())
-                .minStockLimit(request.getMinStockLimit())
+                .minStockLimit(request.getMinStockLimit() != null ? request.getMinStockLimit() : 2)
                 .build();
 
         part = sparePartRepository.save(part);
@@ -54,12 +59,46 @@ public class SparePartService {
     }
 
     @Transactional
-    public SparePartResponse updateStock(Long id, Integer additionalQuantity) {
+    public SparePartResponse updatePart(Long id, UpdateSparePartRequest request) {
         SparePart part = sparePartRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Деталь з ID " + id + " не знайдено"));
 
-        part.setStockQuantity(part.getStockQuantity() + additionalQuantity);
+        part.setName(request.getName().trim());
+        part.setCategory(request.getCategory().trim());
+        part.setPurchasePrice(request.getPurchasePrice());
+        part.setRetailPrice(request.getRetailPrice());
+        part.setMinStockLimit(request.getMinStockLimit());
+
         part = sparePartRepository.save(part);
         return DtoMapper.toSparePartResponse(part);
+    }
+
+    @Transactional
+    public SparePartResponse updateStock(Long id, Integer additionalQuantity) {
+        if (additionalQuantity == null || additionalQuantity == 0) {
+            throw new BadRequestException("Кількість зміни залишку не може дорівнювати 0");
+        }
+        SparePart part = sparePartRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Деталь з ID " + id + " не знайдено"));
+
+        int newStock = part.getStockQuantity() + additionalQuantity;
+        if (newStock < 0) {
+            throw new BadRequestException("Залишок на складі не може стати від'ємним (поточний залишок: " + part.getStockQuantity() + " шт.)");
+        }
+
+        part.setStockQuantity(newStock);
+        part = sparePartRepository.save(part);
+        return DtoMapper.toSparePartResponse(part);
+    }
+
+    @Transactional
+    public void deletePart(Long id) {
+        if (!sparePartRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Деталь з ID " + id + " не знайдено");
+        }
+        if (orderPartRepository.existsBySparePartId(id)) {
+            throw new BadRequestException("Неможливо видалити деталь зі складу, оскільки вона вже фігурує в історії ремонтів");
+        }
+        sparePartRepository.deleteById(id);
     }
 }
